@@ -1,0 +1,340 @@
+================================================================
+AI DIARY CLI — EXECUTION LOG
+Recorded: Sun Mar 15 23:48:25 EDT 2026
+Python: Python 3.14.3
+================================================================
+
+================================================================
+SECTION 1: HISTORY & READ
+================================================================
+
+----------------------------------------------------------------
+COMMAND: python main.py history --limit 10
+----------------------------------------------------------------
+2026-03-15
+2026-01-29
+2024-07-02
+2024-07-01
+2024-06-29
+2024-06-28
+2024-06-27
+2024-06-25
+2024-06-23
+2024-06-21
+
+----------------------------------------------------------------
+COMMAND: python main.py read --date 2026-03-15
+----------------------------------------------------------------
+Date: 2026-03-15
+Entries: 1
+
+Entry 1
+Saved at: 2026-03-15T18:21:44
+Mood: 🙂 Good
+Highlight: small win
+
+Entry:
+i woke up late and had a rough morning but then finished some work and felt better
+
+----------------------------------------------------------------
+COMMAND: python main.py read --date 2026-01-29
+----------------------------------------------------------------
+Date: 2026-01-29
+Entries: 1
+
+Entry 1
+Saved at: 2026-03-15T23:41:18
+Mood: GOODDD
+Highlight: 
+
+Entry:
+it was my birthdayyyy. it was fun
+
+Reflection:
+Today was a wonderful day - I felt truly celebrated on my special day, surrounded by loved ones who made me feel seen and appreciated. The joy and laughter we shared together filled the air, and I'm still beaming with happiness from all the sweet gestures and thoughtful gifts. As I reflect on this birthday, I realize that it was the people in my life who truly made it unforgettable.
+
+================================================================
+SECTION 2: MOOD & TRENDS
+================================================================
+
+----------------------------------------------------------------
+COMMAND: python main.py mood --days 30
+----------------------------------------------------------------
+Mood trend:
+2023-03-13: motivated
+2023-03-14: excited
+2023-03-15: calm
+2023-03-16: tired
+2023-03-17: frustrated
+2023-03-18: proud
+2023-03-19: happy
+2024-06-01: happy
+2024-06-02: motivated
+2024-06-03: tired
+2024-06-05: tired
+2024-06-06: proud
+2024-06-08: tired
+2024-06-10: calm
+2024-06-11: uncertain
+2024-06-13: calm
+2024-06-14: grateful
+2024-06-16: overwhelmed
+2024-06-18: tired
+2024-06-19: content
+2024-06-21: excited
+2024-06-23: grateful
+2024-06-25: overwhelmed
+2024-06-27: proud
+2024-06-28: tired
+2024-06-29: frustrated
+2024-07-01: content
+2024-07-02: excited
+2026-01-29: GOODDD
+2026-03-15: 🙂 Good
+
+----------------------------------------------------------------
+COMMAND: python main.py trends --days 30
+----------------------------------------------------------------
+Trends over the last 30 entries:
+Sentiment counts:
+- neutral: 29
+Mood alignment:
+- unclear: 29
+
+================================================================
+SECTION 3: AI FEATURES
+================================================================
+
+----------------------------------------------------------------
+COMMAND: python main.py insight
+----------------------------------------------------------------
+Here is one short practical insight based on the last 7 diary entries:
+
+When feeling overwhelmed by multiple responsibilities, it can be helpful to take small breaks and celebrate small victories, rather than putting off tasks until they feel insurmountable. This allows for a sense of momentum and control over time, which in turn can boost motivation and confidence.
+
+----------------------------------------------------------------
+COMMAND: python main.py ask What have I been working on lately?
+----------------------------------------------------------------
+You've been working on balancing academics with your part-time job and social life. You've also been struggling with motivation and feeling overwhelmed by assignments, exams, and other responsibilities.
+
+----------------------------------------------------------------
+COMMAND: python main.py weekly-review --days 7
+----------------------------------------------------------------
+Here is a summary of the last 7 days of diary entries:
+
+**Diary context:**
+The diary entries span from 2024-06-27 to 2026-03-15, with a gap in entries between 2024 and 2026.
+
+**Main themes:**
+
+* Balancing academic responsibilities with social life
+* Struggling with stress and feeling overwhelmed
+* Finding passion and purpose amidst academic challenges
+* Celebrating small wins and confidence boosts
+
+**Wins:**
+
+* Managed to get some work done despite initial struggles (2024-07-01)
+* Had a conversation that made me realize my true goals and aspirations (2024-06-27)
+* Felt proud of myself for taking a chance and opening up to someone new (2024-06-27)
+
+**Challenges:**
+
+* Struggling with balancing social life and academics (2024-06-29)
+* Feeling frustrated and stuck in a rut due to upcoming exams (2024-06-29)
+* Experiencing exhaustion from juggling school, work, and creative projects (2024-06-28)
+
+**What to focus on next week:**
+
+* Continue working on balancing academic responsibilities with social life
+* Prioritize self-care and stress management techniques
+* Explore ways to stay motivated and focused on long-term goals
+
+----------------------------------------------------------------
+COMMAND: python main.py coach --date 2026-03-15
+----------------------------------------------------------------
+**What stands out:**
+You've had a small win today (woke up late but finished work and felt better) after a rough morning. This is a great reminder that even on tough days, you can still achieve something positive.
+
+**What to do next:**
+Reflect on what contributed to your small win today. Was it the fact that you were able to focus on your work? Did you have a good support system or environment that helped you stay motivated? Identifying these factors can help you replicate this success in the future.
+
+**Question to carry forward:**
+How can I build on my small wins and create more momentum in my daily life, especially when faced with challenging mornings or situations where I feel overwhelmed?
+
+----------------------------------------------------------------
+COMMAND: python main.py plan-next --date 2026-03-15
+----------------------------------------------------------------
+**Top priorities:**
+
+1. **Catch up on work**: Make up for lost time from waking up late yesterday and ensure all tasks are completed.
+2. **Review academic progress**: Check assignments and exams to stay on top of coursework and make any necessary adjustments.
+
+**Risks to manage:**
+
+1. **Procrastination**: Avoid putting off important tasks, especially with upcoming deadlines.
+2. **Social life vs. academics**: Balance social commitments with academic responsibilities to avoid feeling overwhelmed.
+
+**Small wins to aim for:**
+
+1. Complete a set amount of work (e.g., 3-4 hours) without distractions or procrastination.
+2. Review and organize assignments and exams to stay on top of coursework.
+3. Make time for a short break or self-care activity, such as exercise or meditation, to maintain mental well-being.
+
+This plan focuses on making up for lost time, reviewing academic progress, and managing potential risks. By achieving small wins, you'll build momentum and confidence in your ability to balance social life and academics.
+
+================================================================
+SECTION 4: GOALS, TAGS, REFLECTION
+================================================================
+
+----------------------------------------------------------------
+COMMAND: python main.py goals
+----------------------------------------------------------------
+No goals found.
+
+----------------------------------------------------------------
+COMMAND: python main.py tags --recent
+----------------------------------------------------------------
+No tags found for 2026-03-15.
+
+----------------------------------------------------------------
+COMMAND: python main.py prompts
+----------------------------------------------------------------
+- What made you smile today?
+- What was the hardest moment today?
+- What did you learn today?
+- What are you grateful for today?
+
+----------------------------------------------------------------
+COMMAND: python main.py similar --date 2026-03-15
+----------------------------------------------------------------
+Similar entries for 2026-03-15:
+- 2012-03-01: keyword overlap: better, entry, some, then
+  highlight: Long list of life principles and further thoughts
+  excerpt: [Entry 1 at ] Thoughts
+
+1. Nothing is as simple as it seems, but its the simple things in life that matters.
+2. Laughter is indeed the best medicine.
+3. Nothing
+- 2023-03-18: keyword overlap: entry, felt, some, then
+  highlight: Struggling to Balance Social Life and Academics
+  excerpt: [Entry 1 at 2026-03-15T23:34:46] I'm still reeling from tonight's party. I'm proud of myself for being more selective with my drinks and actually getting out of
+- 2023-03-19: keyword overlap: entry, felt, morning, some
+  highlight: Developing healthy habits for exam success
+  excerpt: [Entry 1 at 2026-03-15T23:35:19] Today's been a great day. I woke up feeling refreshed after a decent night's sleep, and it's amazing how much of a difference t
+
+----------------------------------------------------------------
+COMMAND: python main.py contradictions --days 30
+----------------------------------------------------------------
+No contradictions found.
+
+================================================================
+SECTION 5: TODOS
+================================================================
+
+----------------------------------------------------------------
+COMMAND: python main.py todo list
+----------------------------------------------------------------
+[ ] 1: finish thesis draft (manual)
+
+----------------------------------------------------------------
+COMMAND: python main.py todo add Review execution log
+----------------------------------------------------------------
+Added task 2: Review execution log
+
+----------------------------------------------------------------
+COMMAND: python main.py todo list --pending-only
+----------------------------------------------------------------
+[ ] 1: finish thesis draft (manual)
+[ ] 2: Review execution log (manual)
+
+----------------------------------------------------------------
+COMMAND: python main.py todo done 1
+----------------------------------------------------------------
+Completed task 1: finish thesis draft
+
+----------------------------------------------------------------
+COMMAND: python main.py todo list
+----------------------------------------------------------------
+[x] 1: finish thesis draft (manual)
+[ ] 2: Review execution log (manual)
+
+================================================================
+SECTION 6: ANALYZE & REWRITE
+================================================================
+
+----------------------------------------------------------------
+COMMAND: python main.py analyze --date 2026-03-15
+----------------------------------------------------------------
+Analysis for 2026-03-15:
+Sentiment: neutral
+Mood alignment: unclear
+
+----------------------------------------------------------------
+COMMAND: python main.py rewrite --date 2026-03-15 --mode bullets
+----------------------------------------------------------------
+Here are the diary entry's contents rewritten in concise bullet points:
+
+* Woke up late
+* Had a rough morning
+* Finished some work
+* Felt better afterwards
+
+================================================================
+SECTION 7: RESURFACE
+================================================================
+
+----------------------------------------------------------------
+COMMAND: python main.py resurface --query work
+----------------------------------------------------------------
+Resurfaced entries for 'work':
+- 2024-06-01: keyword overlap: work; matched follow-up question
+  highlight: Navigating Challenges at Work | Creative passion fuels future dreams
+  excerpt: [Entry 1 at 2026-03-15T22:00:52] I'm actually feeling pretty good today despite having one of those grueling days at my part-time job. I'm working as a marketin
+- 2024-06-21: keyword overlap: work; matched follow-up question
+  highlight: Struggling to Balance Work and Study Life
+  excerpt: [Entry 1 at 2026-03-15T22:08:22] I'm so excited for the semester ahead, I really am. I've been putting off my reading list for weeks now, but today I finally cr
+- 2024-06-28: keyword overlap: work; matched follow-up question
+  highlight: Balance and exhaustion prevail
+  excerpt: [Entry 1 at 2026-03-15T22:11:05] I'm so tired today. I think it's because my creative project is finally coming together and I've been working on it nonstop for
+- 2007-01-01: keyword overlap: work
+  highlight: Running, exercise and stress at school
+  excerpt: [Entry 1 at ] Got back to school which was fine and good to see everyone. Then came a tonne of total chaos when we were told about all the work we had to do, an
+- 2012-03-01: keyword overlap: work
+  highlight: Long list of life principles and further thoughts
+  excerpt: [Entry 1 at ] Thoughts
+
+1. Nothing is as simple as it seems, but its the simple things in life that matters.
+2. Laughter is indeed the best medicine.
+3. Nothing
+
+================================================================
+SECTION 8: LLM TIMING STATS
+================================================================
+
+----------------------------------------------------------------
+COMMAND: python main.py timing
+----------------------------------------------------------------
+LLM timing summary (78 calls):
+
+call_type              count   avg(s)   min(s)   max(s)  model(s)
+---------------------------------------------------------------------------
+analyze_metadata          14    11.18     4.69    16.30  llama3.1:8b
+entry_generation          10    12.34    10.82    17.85  llama3.1:8b
+analyze_coaching          14     6.43     3.25     7.79  llama3.1:8b
+reflection                13     5.55     3.68     6.91  llama3.1:8b
+task_extraction           14     3.32     0.74     6.61  llama3.1:8b
+unknown                    2    13.37    11.80    14.94  llama3.1:8b
+intent_routing             5     4.25     1.10    11.14  llama3.1:8b
+weekly_summary             1    18.53    18.53    18.53  llama3.1:8b
+answer_from_entries        1    17.77    17.77    17.77  llama3.1:8b
+insight                    1    13.07    13.07    13.07  llama3.1:8b
+plan_next                  1    12.91    12.91    12.91  llama3.1:8b
+coaching                   1    10.37    10.37    10.37  llama3.1:8b
+rewrite                    1     1.74     1.74     1.74  llama3.1:8b
+
+Raw log: /Users/tanmaybhuskute/Documents/ai-diary/data/llm_timing.jsonl
+
+================================================================
+END OF LOG
+================================================================

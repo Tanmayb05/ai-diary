@@ -10,8 +10,11 @@ from ai import (
     analyze_entry,
     answer_from_entries,
     answer_with_context,
+    answer_with_facts,
+    extract_facts,
     extract_tasks,
     generate_coaching,
+    generate_digest,
     generate_insight,
     generate_plan_next,
     generate_reflection,
@@ -39,6 +42,7 @@ from diary import (
 )
 from handlers import ChatHandlers
 from prompts import list_prompts, mood_choices
+from facts import load_facts, upsert_fact, delete_fact, render_facts, UpsertResult
 from todo import add_task, bulk_add_tasks, delete_task, list_tasks, mark_done, render_tasks
 from utils import normalize_date, today_key
 
@@ -85,6 +89,9 @@ def parse_args() -> argparse.Namespace:
     weekly_parser = subparsers.add_parser("weekly-review", help="Generate a weekly review from recent entries")
     weekly_parser.add_argument("--days", type=int, default=7)
 
+    digest_parser = subparsers.add_parser("digest", help="Generate a proactive personal digest")
+    digest_parser.add_argument("--days", type=int, default=14)
+
     tags_parser = subparsers.add_parser("tags", help="Show entry tags")
     tags_group = tags_parser.add_mutually_exclusive_group()
     tags_group.add_argument("--date", help="Entry date in YYYY-MM-DD format")
@@ -130,6 +137,21 @@ def parse_args() -> argparse.Namespace:
     timing_parser = subparsers.add_parser("timing", help="Show LLM call timing stats by call type")
     timing_parser.add_argument("--last", type=int, default=None, help="Only show the last N calls")
 
+    facts_parser = subparsers.add_parser("facts", help="View and manage personal facts")
+    facts_sub = facts_parser.add_subparsers(dest="facts_command", required=True)
+
+    facts_sub.add_parser("list", help="Show all known personal facts")
+
+    facts_set = facts_sub.add_parser("set", help="Manually set a fact")
+    facts_set.add_argument("fact_type")
+    facts_set.add_argument("value")
+
+    facts_del = facts_sub.add_parser("delete", help="Delete a fact")
+    facts_del.add_argument("fact_type")
+
+    facts_history = facts_sub.add_parser("history", help="Show history for a fact")
+    facts_history.add_argument("fact_type")
+
     todo_parser = subparsers.add_parser("todo", help="Manage tasks")
     todo_subparsers = todo_parser.add_subparsers(dest="todo_command", required=True)
 
@@ -173,6 +195,8 @@ def handle_write(args: argparse.Namespace) -> None:
     follow_up_questions = []
     advice = []
     entities = []
+    newly_stored: list[UpsertResult] = []
+    conflicts: list[UpsertResult] = []
 
     if not args.skip_ai:
         try:
@@ -191,8 +215,24 @@ def handle_write(args: argparse.Namespace) -> None:
             follow_up_questions = analysis["follow_up_questions"]
             advice = analysis["advice"]
             entities = analysis["entities"]
+            extracted_facts = extract_facts(entry_text, entry_date, model=args.model)
+            newly_stored = []
+            conflicts = []
+            for fact in extracted_facts:
+                result = upsert_fact(
+                    fact_type=fact["fact_type"],
+                    value=fact["value"],
+                    source_date=entry_date,
+                    source_excerpt=fact["source_excerpt"],
+                )
+                if result.is_conflict:
+                    conflicts.append(result)
+                else:
+                    newly_stored.append(result)
         except AIError as exc:
             print(f"AI unavailable: {exc}")
+            newly_stored = []
+            conflicts = []
 
     saved_date, payload = upsert_entry(
         entry_date=entry_date,
@@ -266,6 +306,20 @@ def handle_write(args: argparse.Namespace) -> None:
         for item in payload["follow_up_questions"]:
             print(f"- {item}")
 
+    if newly_stored:
+        print("\nPersonal facts learned:")
+        for r in newly_stored:
+            label = "(new)" if r.old_value is None else "(updated)"
+            print(f"  {r.fact_type}: {r.new_value}  {label}")
+
+    if conflicts:
+        print("\n⚠ Fact conflicts detected:")
+        for r in conflicts:
+            print(f"  {r.fact_type}:")
+            print(f"    previously: {r.old_value}")
+            print(f"    now says:   {r.new_value}")
+        print("  Run `python main.py facts list` to review. Use `facts set` to correct.")
+
 
 def handle_read(args: argparse.Namespace) -> None:
     entry_date, entries = get_entries_for_date(args.date)
@@ -310,7 +364,7 @@ def handle_mood(days: int) -> None:
 
 def handle_ask(question: str, model: str) -> None:
     try:
-        print(answer_from_entries(question, load_entries(), model=model))
+        print(answer_with_facts(question, load_facts(), load_entries(), model=model))
     except AIError as exc:
         print(f"AI unavailable: {exc}")
 
@@ -330,6 +384,27 @@ def handle_weekly_review(days: int, model: str) -> None:
 
     try:
         print(generate_weekly_summary(entries, model=model))
+        contradictions = detect_contradictions(days=days)
+        if contradictions:
+            print("\nGoals mentioned but not acted on:")
+            for item in contradictions[:3]:
+                print(f"  - {item['goal']} ({item['mention_count']}x)")
+    except AIError as exc:
+        print(f"AI unavailable: {exc}")
+
+
+def handle_digest(days: int, model: str) -> None:
+    entries = get_recent_entries(limit=days)
+    if not entries:
+        print("Not enough diary entries yet.")
+        return
+
+    facts = load_facts()
+    contradictions = detect_contradictions(days=days)
+    trends = sentiment_trends(days=days)
+
+    try:
+        print(generate_digest(entries, facts, contradictions, trends, model=model))
     except AIError as exc:
         print(f"AI unavailable: {exc}")
 
@@ -571,7 +646,7 @@ def handle_chat(question: str, model: str) -> None:
             resurfaced.append((match["date"], entry))
 
     try:
-        print(answer_with_context(question, current_entry, recent_entries, resurfaced, model=model))
+        print(answer_with_context(question, current_entry, recent_entries, resurfaced, facts=load_facts(), model=model))
     except AIError as exc:
         print(f"AI unavailable: {exc}")
 
@@ -636,6 +711,37 @@ def handle_contradictions(days: int) -> None:
         print(f"  tasks created: {item['task_count']}")
         print(f"  follow-through signals: {item['follow_through_count']}")
         print(f"  dates: {', '.join(item['dates'])}")
+
+
+def handle_facts(args: argparse.Namespace) -> None:
+    if args.facts_command == "list":
+        print(render_facts(load_facts()))
+
+    elif args.facts_command == "set":
+        upsert_fact(args.fact_type, args.value, source_date=today_key(), source_excerpt="manually set")
+        print(f"Set {args.fact_type} = {args.value}")
+
+    elif args.facts_command == "delete":
+        deleted = delete_fact(args.fact_type)
+        if deleted:
+            print(f"Deleted fact: {args.fact_type}")
+        else:
+            print(f"Fact not found: {args.fact_type}")
+
+    elif args.facts_command == "history":
+        facts = load_facts()
+        record = facts.get(args.fact_type)
+        if not record:
+            print(f"No fact found: {args.fact_type}")
+            return
+        print(f"{args.fact_type}: {record['value']}  (from {record['source_date']})")
+        history = record.get("history", [])
+        if history:
+            print("History:")
+            for h in reversed(history):
+                print(f"  {h['value']}  (from {h['source_date']}, updated {h['updated_at']})")
+        else:
+            print("No history.")
 
 
 def handle_todo(args: argparse.Namespace) -> None:
@@ -710,6 +816,10 @@ def main() -> None:
         handle_contradictions(args.days)
     elif args.command == "timing":
         handle_timing(args.last)
+    elif args.command == "facts":
+        handle_facts(args)
+    elif args.command == "digest":
+        handle_digest(args.days, args.model)
     elif args.command == "todo":
         handle_todo(args)
 

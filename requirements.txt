@@ -1,2 +1,1 @@
-# No third-party runtime dependencies yet.
-# This project currently uses only the Python standard library.
+rank-bm25>=0.2.2

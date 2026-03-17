@@ -110,6 +110,69 @@ Diary entry:
     return _generate(prompt, model=model, temperature=0.5, call_type="reflection")
 
 
+# Known fact types the LLM should look for
+FACT_TYPES = [
+    "name", "birthday", "age", "location", "hometown",
+    "job", "company", "school", "partner", "siblings",
+    "pets", "nationality", "languages",
+]
+
+
+def extract_facts(entry_text: str, entry_date: str, model: str = DEFAULT_MODEL) -> list[dict[str, str]]:
+    """
+    Extract durable personal facts from a diary entry.
+    Returns list of {"fact_type": ..., "value": ..., "source_excerpt": ...}
+    """
+    prompt = f"""
+Extract personal facts about the diary author from the entry below.
+Return strict JSON only using this schema:
+[
+  {{
+    "fact_type": "birthday",
+    "value": "April 12 1998",
+    "source_excerpt": "today is my birthday, I turn 26"
+  }}
+]
+
+Known fact types to look for: {", ".join(FACT_TYPES)}
+You may also infer other stable personal facts not in this list.
+
+Rules:
+- Only include facts the writer is clearly stating about themselves.
+- Normalize dates to YYYY-MM-DD if possible, otherwise keep natural language.
+- Do not include temporary states (e.g. "feeling tired") — only durable facts.
+- Return [] if no clear personal facts are present.
+- Do not include markdown or commentary.
+
+Today's date: {entry_date}
+Diary entry:
+{entry_text}
+""".strip()
+    raw = _generate(prompt, model=model, temperature=0.0, call_type="fact_extraction")
+    parsed = _parse_json(raw)
+    if not isinstance(parsed, list):
+        return []
+    return _clean_fact_candidates(parsed)
+
+
+def _clean_fact_candidates(value: list) -> list[dict[str, str]]:
+    items = []
+    seen = set()
+    for raw in value:
+        if not isinstance(raw, dict):
+            continue
+        fact_type = str(raw.get("fact_type", "")).strip().lower().replace(" ", "_")
+        val = str(raw.get("value", "")).strip()
+        excerpt = str(raw.get("source_excerpt", "")).strip()
+        if not fact_type or not val:
+            continue
+        if fact_type in seen:
+            continue
+        seen.add(fact_type)
+        items.append({"fact_type": fact_type, "value": val, "source_excerpt": excerpt})
+    return items
+
+
 def extract_tasks(entry_text: str, model: str = DEFAULT_MODEL) -> list[dict[str, str]]:
     prompt = f"""
 Extract actionable tasks from the diary entry.
@@ -311,6 +374,61 @@ Diary context:
     return _generate(prompt, model=model, temperature=0.3, call_type="weekly_summary")
 
 
+def generate_digest(
+    entries: list[tuple[str, dict[str, Any]]],
+    facts: dict[str, Any],
+    contradictions: list[dict[str, Any]],
+    trends: dict[str, Any],
+    model: str = DEFAULT_MODEL,
+) -> str:
+    """
+    Generate a proactive personal digest that surfaces patterns,
+    deferred goals, and mood signals the user may not have noticed.
+    """
+    if not entries:
+        return "Not enough diary entries for a digest yet."
+
+    facts_block = ""
+    if facts:
+        lines = [f"- {k}: {v['value']}" for k, v in sorted(facts.items())]
+        facts_block = "Known about the user:\n" + "\n".join(lines)
+
+    entries_block = _render_recent_context(entries, limit=14)
+
+    contradictions_block = ""
+    if contradictions:
+        items = [f"- {c['goal']} (mentioned {c['mention_count']} times, no follow-through)" for c in contradictions[:5]]
+        contradictions_block = "Deferred goals (mentioned repeatedly but never acted on):\n" + "\n".join(items)
+
+    trends_block = ""
+    if trends.get("top_stress_triggers"):
+        triggers = [f"- {t['trigger']} ({t['count']}x)" for t in trends["top_stress_triggers"][:3]]
+        trends_block = "Top stress triggers:\n" + "\n".join(triggers)
+
+    prompt = f"""
+You are a personal assistant reviewing this person's diary.
+Write a short, honest, practical digest. Speak directly to them in second person.
+Use exactly these sections:
+
+What's been on your mind:
+Patterns I'm noticing:
+Goals you keep mentioning but haven't acted on:
+Something to try this week:
+
+Keep each section to 1-3 bullet points. Be specific, reference real things from their entries.
+Do not be a therapist. Do not overclaim.
+
+{facts_block}
+
+{entries_block}
+
+{contradictions_block}
+
+{trends_block}
+""".strip()
+    return _generate(prompt, model=model, temperature=0.35, call_type="digest")
+
+
 def rewrite_entry(entry_text: str, mode: str, model: str = DEFAULT_MODEL) -> str:
     if mode not in {"clean", "bullets"}:
         raise ValueError(f"Unsupported rewrite mode: {mode}")
@@ -377,14 +495,60 @@ Recent context:
     return _generate(prompt, model=model, temperature=0.25, call_type="plan_next")
 
 
+def answer_with_facts(
+    question: str,
+    facts: dict[str, Any],
+    entries: dict[str, Any],
+    model: str = DEFAULT_MODEL,
+) -> str:
+    """
+    Answer a question using the fact store as the primary source,
+    falling back to recent diary entries for context.
+    """
+    facts_block = ""
+    if facts:
+        lines = [f"- {k}: {v['value']}" for k, v in sorted(facts.items())]
+        facts_block = "Known personal facts:\n" + "\n".join(lines)
+
+    context_lines = []
+    for entry_date in sorted(entries.keys(), reverse=True)[:7]:
+        item = entries[entry_date]
+        context_lines.append(
+            f"Date: {entry_date}\nMood: {item.get('mood', '-')}\n"
+            f"Tags: {', '.join(item.get('tags', []) or []) or '-'}\n"
+            f"Entry: {item.get('entry', '')}"
+        )
+    entries_block = "\n\n".join(context_lines)
+
+    prompt = f"""
+Answer the user's question using the sources below.
+Prefer the Known personal facts section for direct personal questions.
+Use diary entries only for questions about events, feelings, or patterns over time.
+If you cannot answer from the provided context, say "I don't know yet."
+Be concise and specific.
+
+Question: {question}
+
+{facts_block}
+
+Recent diary entries:
+{entries_block}
+""".strip()
+    return _generate(prompt, model=model, temperature=0.2, call_type="answer_with_facts")
+
+
 def answer_with_context(
     question: str,
     current_entry: tuple[str, dict[str, Any]] | None,
     recent_entries: list[tuple[str, dict[str, Any]]],
     retrieved_entries: list[tuple[str, dict[str, Any]]],
+    facts: dict[str, Any] | None = None,
     model: str = DEFAULT_MODEL,
 ) -> str:
     sections = []
+    if facts:
+        lines = [f"- {k}: {v['value']}" for k, v in sorted(facts.items())]
+        sections.append("Known personal facts:\n" + "\n".join(lines))
     if current_entry:
         entry_date, entry = current_entry
         sections.append(f"Current entry:\n{_render_single_entry(entry_date, entry)}")

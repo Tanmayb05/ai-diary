@@ -371,12 +371,74 @@ def resurface_entries(
     *,
     limit: int = 5,
 ) -> list[dict[str, Any]]:
+    """
+    BM25-ranked retrieval over diary entries.
+    Falls back to keyword overlap if rank_bm25 is not installed.
+    """
     cleaned_query = str(query or "").strip().lower()
     if not cleaned_query:
         return []
 
-    query_terms = _entry_keywords(cleaned_query)
     entries = load_entries()
+    if not entries:
+        return []
+
+    # Build corpus: one document per entry
+    # Concatenate all searchable text for each entry
+    dates = sorted(entries.keys(), reverse=True)
+    corpus_texts = []
+    for d in dates:
+        item = entries[d]
+        parts = [
+            item.get("entry", ""),
+            item.get("highlight", ""),
+            " ".join(item.get("goals", []) or []),
+            " ".join(item.get("entities", []) or []),
+            " ".join(item.get("tags", []) or []),
+            " ".join(item.get("wins", []) or []),
+        ]
+        corpus_texts.append(" ".join(parts))
+
+    try:
+        from rank_bm25 import BM25Okapi
+
+        # Tokenize corpus and query using existing _entry_keywords tokenizer
+        tokenized_corpus = [list(_entry_keywords(text)) for text in corpus_texts]
+        tokenized_query = list(_entry_keywords(cleaned_query))
+
+        bm25 = BM25Okapi(tokenized_corpus)
+        scores = bm25.get_scores(tokenized_query)
+
+        # Collect results above threshold
+        results = []
+        for i, score in enumerate(scores):
+            if score <= 0:
+                continue
+            entry_date = dates[i]
+            item = entries[entry_date]
+            results.append({
+                "date": entry_date,
+                "score": float(score),
+                "reasons": [f"bm25 score: {score:.2f}"],
+                "highlight": item.get("highlight", ""),
+                "excerpt": str(item.get("entry", "")).strip()[:160],
+            })
+
+        results.sort(key=lambda x: -x["score"])
+        return results[:limit]
+
+    except ImportError:
+        # Fallback to original keyword overlap if rank_bm25 not installed
+        return _resurface_keyword_fallback(cleaned_query, entries, limit)
+
+
+def _resurface_keyword_fallback(
+    cleaned_query: str,
+    entries: dict[str, Any],
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Original keyword overlap scoring — kept as fallback."""
+    query_terms = _entry_keywords(cleaned_query)
     matches = []
     for entry_date, item in entries.items():
         features = _entry_feature_sets(item)
@@ -393,24 +455,18 @@ def resurface_entries(
             score += len(matching_terms) * 2
             reasons.append(f"keyword overlap: {', '.join(matching_terms[:4])}")
 
-        if cleaned_query in " ".join(item.get("follow_up_questions", [])).lower():
-            score += 2
-            reasons.append("matched follow-up question")
-
         if score <= 0:
             continue
 
-        matches.append(
-            {
-                "date": entry_date,
-                "score": score,
-                "reasons": reasons,
-                "highlight": item.get("highlight", ""),
-                "excerpt": str(item.get("entry", "")).strip()[:160],
-            }
-        )
+        matches.append({
+            "date": entry_date,
+            "score": score,
+            "reasons": reasons,
+            "highlight": item.get("highlight", ""),
+            "excerpt": str(item.get("entry", "")).strip()[:160],
+        })
 
-    matches.sort(key=lambda item: (-item["score"], item["date"]))
+    matches.sort(key=lambda x: (-x["score"], x["date"]))
     return matches[:limit]
 
 

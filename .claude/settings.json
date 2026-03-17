@@ -2,7 +2,22 @@
   "permissions": {
     "allow": [
       "Bash(source .venv/bin/activate)",
-      "Bash(ls /Users/tanmaybhuskute/Documents/ai-diary/*.py)"
+      "Bash(ls /Users/tanmaybhuskute/Documents/ai-diary/*.py)",
+      "Skill(gsd:execute-phase)",
+      "Skill(gsd:execute-phase:*)",
+      "Bash(python3 -c \"import facts; import ai; import main; print\\(''OK''\\)\")",
+      "Bash(python3 main.py facts list)",
+      "Bash(python3 main.py facts set name \"Alex\")",
+      "Bash(python3 main.py facts set birthday \"1998-04-12\")",
+      "Bash(python3 main.py facts delete birthday)",
+      "Bash(python3 main.py facts delete name)",
+      "Bash(python3 -c \"import ai; import main; print\\(''OK''\\)\")",
+      "Bash(node /Users/tanmaybhuskute/.claude/get-shit-done/bin/gsd-tools.cjs init execute-phase \"3\")",
+      "Bash(python3 -c \"from facts import upsert_fact, UpsertResult; print\\(''facts.py OK''\\)\")",
+      "Bash(python3 -c \"from main import parse_args; print\\(''main.py OK''\\)\")",
+      "Bash(python3 main.py facts history --help)",
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(.venv/bin/python -m pytest tests/test_phases.py -v)"
     ]
   }
 }

@@ -1,0 +1,15 @@
+{
+  "location": {
+    "value": "London",
+    "source_date": "2026-01-10",
+    "source_excerpt": "I moved to London",
+    "updated_at": "2026-03-17T02:59:18",
+    "history": [
+      {
+        "value": "Mumbai",
+        "source_date": "2026-01-01",
+        "updated_at": "2026-03-17T02:59:18"
+      }
+    ]
+  }
+}

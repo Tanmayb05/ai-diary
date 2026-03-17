@@ -76,3 +76,17 @@
 {"ts": "2026-03-15T23:49:47", "model": "llama3.1:8b", "call_type": "analyze_metadata", "prompt_chars": 1674, "response_chars": 393, "elapsed_s": 6.335}
 {"ts": "2026-03-15T23:49:51", "model": "llama3.1:8b", "call_type": "analyze_coaching", "prompt_chars": 503, "response_chars": 277, "elapsed_s": 3.252}
 {"ts": "2026-03-15T23:49:52", "model": "llama3.1:8b", "call_type": "rewrite", "prompt_chars": 204, "response_chars": 155, "elapsed_s": 1.742}
+{"ts": "2026-03-16T19:39:59", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 1767, "response_chars": 50, "elapsed_s": 7.55}
+{"ts": "2026-03-16T19:40:28", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 1831, "response_chars": 53, "elapsed_s": 0.977}
+{"ts": "2026-03-16T19:44:18", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2409, "response_chars": 319, "elapsed_s": 4.985}
+{"ts": "2026-03-16T19:46:20", "model": "llama3.1:8b", "call_type": "reflection", "prompt_chars": 604, "response_chars": 474, "elapsed_s": 4.543}
+{"ts": "2026-03-16T19:46:21", "model": "llama3.1:8b", "call_type": "task_extraction", "prompt_chars": 723, "response_chars": 2, "elapsed_s": 0.848}
+{"ts": "2026-03-16T19:46:30", "model": "llama3.1:8b", "call_type": "analyze_metadata", "prompt_chars": 1812, "response_chars": 588, "elapsed_s": 8.981}
+{"ts": "2026-03-16T19:46:34", "model": "llama3.1:8b", "call_type": "analyze_coaching", "prompt_chars": 641, "response_chars": 430, "elapsed_s": 4.576}
+{"ts": "2026-03-16T19:51:26", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2181, "response_chars": 70, "elapsed_s": 3.557}
+{"ts": "2026-03-16T19:51:49", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2182, "response_chars": 71, "elapsed_s": 1.337}
+{"ts": "2026-03-16T19:52:21", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2182, "response_chars": 71, "elapsed_s": 1.249}
+{"ts": "2026-03-16T19:52:59", "model": "llama3.1:8b", "call_type": "reflection", "prompt_chars": 1064, "response_chars": 273, "elapsed_s": 3.581}
+{"ts": "2026-03-16T19:53:00", "model": "llama3.1:8b", "call_type": "task_extraction", "prompt_chars": 723, "response_chars": 2, "elapsed_s": 0.858}
+{"ts": "2026-03-16T19:53:09", "model": "llama3.1:8b", "call_type": "analyze_metadata", "prompt_chars": 1812, "response_chars": 588, "elapsed_s": 8.957}
+{"ts": "2026-03-16T19:53:13", "model": "llama3.1:8b", "call_type": "analyze_coaching", "prompt_chars": 641, "response_chars": 346, "elapsed_s": 3.863}

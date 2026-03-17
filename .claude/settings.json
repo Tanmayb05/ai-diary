@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(source .venv/bin/activate)"
+      "Bash(source .venv/bin/activate)",
+      "Bash(ls /Users/tanmaybhuskute/Documents/ai-diary/*.py)"
     ]
   }
 }

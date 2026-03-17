@@ -44,8 +44,8 @@ Return a JSON object with "intent" and "params" fields. Choose exactly one inten
                     params: {{"id": <int or null>}}
 - "help"          — user wants help or a list of commands
                     params: {{}}
-- "journal_candidate" — message looks like a diary entry the user accidentally typed
-                    params: {{}}
+- "journal_candidate" — message reads like personal diary content: expressing feelings, describing what happened in their day, venting, reflecting, or sharing a personal experience or emotion. Use this when the user types something that sounds like they're journaling even if they didn't explicitly say "write" or "journal".
+                    params: {{"entry_text": "<the full message text>"}}
 - "unknown"       — none of the above
                     params: {{}}
 
@@ -56,6 +56,7 @@ Rules:
 - For read_range, month is null if only a year is mentioned (e.g. "show 2024 entries")
 - For read, date is null if no date is mentioned (defaults to today)
 - For write, date is null if no date is mentioned (defaults to today)
+- If a message expresses personal feelings, describes daily events, or sounds like journaling, prefer "journal_candidate" over "unknown".
 - Return only the JSON object. No markdown, no explanation.
 """
 
@@ -204,10 +205,11 @@ def _build_intent(parsed: dict, original_message: str) -> RoutedIntent:
         return RoutedIntent("help")
 
     if intent == "journal_candidate":
+        entry_text = str(params.get("entry_text", "")).strip() or original_message.strip()
         return RoutedIntent(
             "confirm_journal_candidate",
-            {"entry_text": original_message.strip()},
-            "This sounds like a diary entry. Do you want me to journal this as today's entry, or did you want me to do something else?",
+            {"entry_text": entry_text},
+            "That sounds like a diary entry. Would you like me to save this to your journal? (yes / no)",
         )
 
     return RoutedIntent("unknown", {"text": original_message.strip()})

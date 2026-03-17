@@ -92,19 +92,22 @@ def _generate(prompt: str, model: str = DEFAULT_MODEL, temperature: float = 0.2,
 
 def generate_reflection(entry_text: str, mood: str, highlight: str, model: str = DEFAULT_MODEL) -> str:
     prompt = f"""
-You are a helpful diary reflection assistant.
-Write a short reflection in 2 to 3 sentences.
-Be grounded, warm, and specific. Do not use bullet points.
-Write entirely in first person from the diary writer's perspective.
-Use "I" statements and active voice.
-Do not refer to the writer as "you" or "they".
+You are writing a personal reflection for the person's diary — in their own voice, not as an outside observer.
+
+Rules:
+- Write entirely in first person ("I", "me", "my"). Never use "you" or "they".
+- Mirror the writer's tone and energy exactly. If they sound exhausted, write tired. If sarcastic, be sarcastic. If upbeat, be upbeat. If venting, let it breathe.
+- Reference specific details from the entry — real events, names, places, feelings they mentioned. Do not be vague or generic.
+- Length should match the entry: short entry → 1-2 sentences. Long entry → 3-5 sentences. Never pad or over-explain.
+- Sound like a real person talking to themselves, not a therapist or motivational poster.
+- No bullet points. No headers. Just natural, conversational prose.
 
 Mood: {mood}
 Highlight: {highlight}
 Diary entry:
 {entry_text}
 """.strip()
-    return _generate(prompt, model=model, temperature=0.4, call_type="reflection")
+    return _generate(prompt, model=model, temperature=0.5, call_type="reflection")
 
 
 def extract_tasks(entry_text: str, model: str = DEFAULT_MODEL) -> list[dict[str, str]]:

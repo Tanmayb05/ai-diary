@@ -91,6 +91,10 @@ class ChatSession:
                 raw = input("Task id to delete\n> ").strip()
                 task_id = int(raw) if raw.isdigit() else None
             return self.handlers.todo_delete(task_id)
+        if routed.name == "show_facts":
+            return self.handlers.show_facts()
+        if routed.name == "ask":
+            return self.handlers.ask(routed.params.get("question", ""))
 
         return self.handlers.unknown(message=routed.params.get("text", ""))
 

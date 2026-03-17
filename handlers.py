@@ -3,8 +3,9 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
-from ai import DEFAULT_MODEL, AIError, analyze_entry, extract_tasks, generate_reflection
-from diary import get_entries_for_date, load_entry_store, render_entries_for_day, render_task_candidate, upsert_entry
+from ai import DEFAULT_MODEL, AIError, analyze_entry, answer_with_facts, extract_tasks, generate_reflection
+from diary import get_entries_for_date, load_entries, load_entry_store, render_entries_for_day, render_task_candidate, upsert_entry
+from facts import load_facts, render_facts
 from prompts import mood_choices
 from todo import add_task, bulk_add_tasks, delete_task, list_tasks, mark_done, render_tasks
 
@@ -32,6 +33,8 @@ class ChatHandlers:
                 "- add todo finish thesis draft",
                 "- mark task 2 done",
                 "- delete task 3",
+                "- show facts",
+                "- when is my birthday",
                 "- exit",
             ]
         )
@@ -183,6 +186,15 @@ class ChatHandlers:
         if not task:
             return f"Task {task_id} not found."
         return f"Deleted task {task['id']}: {task['task']}"
+
+    def show_facts(self) -> str:
+        return render_facts(load_facts())
+
+    def ask(self, question: str) -> str:
+        try:
+            return answer_with_facts(question, load_facts(), load_entries(), model=self.model)
+        except AIError as exc:
+            return f"AI unavailable: {exc}"
 
     def unknown(self, message: str) -> str:
         return f"I couldn't route that yet: {message}\nTry `help`."

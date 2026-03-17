@@ -17,7 +17,10 @@
       "Bash(python3 -c \"from main import parse_args; print\\(''main.py OK''\\)\")",
       "Bash(python3 main.py facts history --help)",
       "Bash(.venv/bin/pip install:*)",
-      "Bash(.venv/bin/python -m pytest tests/test_phases.py -v)"
+      "Bash(.venv/bin/python -m pytest tests/test_phases.py -v)",
+      "Bash(.venv/bin/python -m pytest tests/test_functional.py -v -s)",
+      "Bash(.venv/bin/python -c \":*)",
+      "Bash(.venv/bin/python -m pytest tests/ -v --tb=no -q)"
     ]
   }
 }

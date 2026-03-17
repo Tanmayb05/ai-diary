@@ -44,6 +44,10 @@ Return a JSON object with "intent" and "params" fields. Choose exactly one inten
                     params: {{"id": <int or null>}}
 - "help"          — user wants help or a list of commands
                     params: {{}}
+- "show_facts"    — user wants to see stored personal facts (e.g. "show facts", "list my facts", "what do you know about me")
+                    params: {{}}
+- "ask"           — user is asking a question about themselves or their diary (e.g. "when is my birthday", "what mood was I in last week", "do I exercise")
+                    params: {{"question": "<the question text>"}}
 - "journal_candidate" — message reads like personal diary content: expressing feelings, describing what happened in their day, venting, reflecting, or sharing a personal experience or emotion. Use this when the user types something that sounds like they're journaling even if they didn't explicitly say "write" or "journal".
                     params: {{"entry_text": "<the full message text>"}}
 - "unknown"       — none of the above
@@ -71,6 +75,8 @@ def route_message(message: str, model: str = "llama3.1:8b") -> RoutedIntent:
         return RoutedIntent("exit")
     if text in {"help", "?", "commands", "what can you do"}:
         return RoutedIntent("help")
+    if re.match(r"^(?:show|list|display|view)\s+(?:my\s+)?facts?$", text):
+        return RoutedIntent("show_facts")
 
     # Fast-path: "read <month> <year>" or "read <year> <month>"
     _range = _try_parse_read_range(text)
@@ -203,6 +209,13 @@ def _build_intent(parsed: dict, original_message: str) -> RoutedIntent:
 
     if intent == "help":
         return RoutedIntent("help")
+
+    if intent == "show_facts":
+        return RoutedIntent("show_facts")
+
+    if intent == "ask":
+        question = str(params.get("question", "")).strip() or original_message.strip()
+        return RoutedIntent("ask", {"question": question})
 
     if intent == "journal_candidate":
         entry_text = str(params.get("entry_text", "")).strip() or original_message.strip()

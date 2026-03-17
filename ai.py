@@ -698,10 +698,21 @@ def _clean_string_list(
 
 
 def _parse_json(raw: str) -> Any:
+    # First try the whole string as-is
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
-        return None
+        pass
+    # Ollama sometimes prepends prose before the JSON — extract the first [...] or {...} block
+    for start_char, end_char in (("[", "]"), ("{", "}")):
+        start = raw.find(start_char)
+        end = raw.rfind(end_char)
+        if start != -1 and end != -1 and end > start:
+            try:
+                return json.loads(raw[start : end + 1])
+            except json.JSONDecodeError:
+                pass
+    return None
 
 
 def _empty_analysis() -> dict[str, Any]:

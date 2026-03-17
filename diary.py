@@ -806,6 +806,6 @@ def _entry_keywords(text: str) -> set[str]:
     words = []
     for raw in str(text).lower().split():
         cleaned = "".join(ch for ch in raw if ch.isalnum())
-        if len(cleaned) >= 4 and cleaned not in stopwords:
+        if len(cleaned) >= 3 and cleaned not in stopwords:
             words.append(cleaned)
     return set(words)

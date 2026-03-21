@@ -181,6 +181,15 @@ def upsert_entry(
         params,
     )
     db.commit()
+
+    try:
+        from embeddings import embed_entry
+        row = db.execute("SELECT id FROM entries WHERE date=?", (key,)).fetchone()
+        if row:
+            embed_entry(row["id"], final)
+    except Exception:
+        pass  # embedding is non-blocking; never fail a save because of it
+
     return key, final
 
 

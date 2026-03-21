@@ -19,6 +19,18 @@ def get_db() -> sqlite3.Connection:
     return db
 
 
+def load_vec_extension(db: sqlite3.Connection) -> bool:
+    """Load sqlite-vec extension. Returns True if available."""
+    try:
+        import sqlite_vec
+        db.enable_load_extension(True)
+        sqlite_vec.load(db)
+        db.enable_load_extension(False)
+        return True
+    except ImportError:
+        return False
+
+
 def _ensure_schema(db: sqlite3.Connection) -> None:
     db.executescript("""
         CREATE TABLE IF NOT EXISTS entries (
@@ -83,3 +95,15 @@ def _ensure_schema(db: sqlite3.Connection) -> None:
         );
     """)
     db.commit()
+
+    try:
+        if load_vec_extension(db):
+            db.executescript("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS entry_embeddings USING vec0(
+                    entry_id INTEGER PRIMARY KEY,
+                    embedding float[768]
+                );
+            """)
+            db.commit()
+    except Exception:
+        pass  # sqlite-vec not installed yet

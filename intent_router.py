@@ -61,8 +61,14 @@ Return a JSON object with "intent" and "params" fields. Choose exactly one inten
 Rules:
 - For dates, resolve relative words using today's date: {today}
 - "yesterday" → {yesterday}
+- "last month" → year={last_month_year}, month={last_month_month}
+- "this month" → year={today_year}, month={today_month}
+- "last year" → year={last_year}, month=null
+- "this year" → year={today_year}, month=null
 - Natural date formats like "Jan 29 2026", "January 29 2026", "29 Jan 2026" must be converted to YYYY-MM-DD
-- For read_range, month is null if only a year is mentioned (e.g. "show 2024 entries")
+- "show entries in the month of feb 2026" → read_range year=2026 month=2
+- "show entries in 2023" → read_range year=2023 month=null
+- For read_range, month is null if only a year is mentioned
 - For read, date is null if no date is mentioned (defaults to today)
 - For write, date is null if no date is mentioned (defaults to today)
 - If a message expresses personal feelings, describes daily events, or sounds like journaling, prefer "journal_candidate" over "unknown".
@@ -90,7 +96,12 @@ def route_message(message: str, model: str = "llama3.1:8b") -> RoutedIntent:
     if _sum is not None:
         return _sum
 
-    # Fast-path: "read <month> <year>" or "read <year> <month>"
+    # Fast-path: relative date ranges (last month, last year, yesterday)
+    _rel = _try_parse_relative_range(text)
+    if _rel is not None:
+        return _rel
+
+    # Fast-path: "show entries in the month of feb 2026" / "show entries in 2023"
     _range = _try_parse_read_range(text)
     if _range is not None:
         return _range
@@ -107,7 +118,17 @@ def route_message(message: str, model: str = "llama3.1:8b") -> RoutedIntent:
 
     today = date.today()
     yesterday = (today - timedelta(days=1)).isoformat()
-    schema = _INTENT_SCHEMA.format(today=today.isoformat(), yesterday=yesterday)
+    first_of_this = today.replace(day=1)
+    last_month_date = first_of_this - timedelta(days=1)
+    schema = _INTENT_SCHEMA.format(
+        today=today.isoformat(),
+        yesterday=yesterday,
+        last_month_year=last_month_date.year,
+        last_month_month=last_month_date.month,
+        today_year=today.year,
+        today_month=today.month,
+        last_year=today.year - 1,
+    )
 
     prompt = f"{schema}\n\nUser message: {message.strip()}"
 
@@ -116,11 +137,26 @@ def route_message(message: str, model: str = "llama3.1:8b") -> RoutedIntent:
         raw = _generate(prompt, model=model, temperature=0.0, call_type="intent_routing")
         parsed = _parse_json(raw)
         if parsed and isinstance(parsed, dict):
-            return _build_intent(parsed, message)
+            intent = _build_intent(parsed, message)
+            if intent.name != "unknown":
+                return intent
     except Exception:
         pass
 
-    # Fallback if LLM is unavailable or returns garbage
+    # If message looks like a browse/read/show attempt but we couldn't parse it,
+    # ask for clarification rather than falling through to chitchat
+    _BROWSE_KEYWORDS = r"\b(?:show|list|display|view|read|entries|entry|diary)\b"
+    if re.search(_BROWSE_KEYWORDS, text):
+        return RoutedIntent(
+            "clarify",
+            {"original": message.strip()},
+            "I didn't quite get that. Could you rephrase? For example:\n"
+            "  'show entries for March 2026'\n"
+            "  'show entries in 2023'\n"
+            "  'read Jan 29 2026'\n"
+            "  'show last month's entries'",
+        )
+
     return RoutedIntent("unknown", {"text": message.strip()})
 
 
@@ -186,26 +222,77 @@ def _try_parse_summarize(text: str) -> RoutedIntent | None:
     return None
 
 
+def _try_parse_relative_range(text: str) -> RoutedIntent | None:
+    """Fast-path for relative date references: yesterday, last month, last year."""
+    today = date.today()
+
+    # "yesterday's entries" / "show yesterday" / "yesterday entry"
+    if re.search(r"\byesterday\b", text):
+        yesterday = (today - timedelta(days=1)).isoformat()
+        return RoutedIntent("read", {"date": yesterday})
+
+    # "last month's entries" / "show last month" / "entries from last month"
+    if re.search(r"\blast\s+month\b", text):
+        first_of_this = today.replace(day=1)
+        last_month = first_of_this - timedelta(days=1)
+        return RoutedIntent("read_range", {"year": last_month.year, "month": last_month.month})
+
+    # "last year's entries" / "show last year"
+    if re.search(r"\blast\s+year\b", text):
+        return RoutedIntent("read_range", {"year": today.year - 1, "month": None})
+
+    # "this month" / "this month's entries"
+    if re.search(r"\bthis\s+month\b", text):
+        return RoutedIntent("read_range", {"year": today.year, "month": today.month})
+
+    # "this year" / "this year's entries"
+    if re.search(r"\bthis\s+year\b", text):
+        return RoutedIntent("read_range", {"year": today.year, "month": None})
+
+    return None
+
+
 def _try_parse_read_range(text: str) -> RoutedIntent | None:
-    """Fast-path regex for 'read <month> <year>' or 'read <year> <month>' patterns."""
+    """Fast-path regex for month/year range patterns in many phrasings."""
     month_pattern = "|".join(_MONTH_NAMES)
-    # "read june 2026" or "read 2026 june"
+
+    # "show entries in the month of feb 2026" / "entries in march 2026" / "show march 2026 entries"
+    m = re.search(
+        rf"(?:entries?\s+(?:in|for|of|from)\s+(?:the\s+month\s+of\s+)?|(?:in|for)\s+(?:the\s+month\s+of\s+)?)({month_pattern})\s+(\d{{4}})",
+        text,
+    )
+    if m:
+        month = _MONTH_NAMES[m.group(1)]
+        year = int(m.group(2))
+        return RoutedIntent("read_range", {"year": year, "month": month})
+
+    # "show entries in the year 2023" / "entries in 2023" / "show 2023 entries"
+    m = re.search(
+        r"(?:entries?\s+(?:in|for|of|from)\s+(?:the\s+year\s+)?|(?:in|for)\s+(?:the\s+year\s+)?)(\d{4})\b",
+        text,
+    )
+    if m:
+        return RoutedIntent("read_range", {"year": int(m.group(1)), "month": None})
+
+    # "read june 2026" or "read 2026 june" or "show june 2026"
     m = re.match(
         rf"^(?:read|show|display|view)\s+(?:({month_pattern})\s+(\d{{4}})|(\d{{4}})\s+({month_pattern}))$",
         text,
     )
     if m:
-        if m.group(1):  # month year
+        if m.group(1):
             month = _MONTH_NAMES[m.group(1)]
             year = int(m.group(2))
-        else:  # year month
+        else:
             year = int(m.group(3))
             month = _MONTH_NAMES[m.group(4)]
         return RoutedIntent("read_range", {"year": year, "month": month})
-    # "read 2026" — year only
+
+    # "read 2026" / "show 2026" — year only
     m = re.match(r"^(?:read|show|display|view)\s+(\d{4})$", text)
     if m:
         return RoutedIntent("read_range", {"year": int(m.group(1)), "month": None})
+
     return None
 
 

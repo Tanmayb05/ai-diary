@@ -61,6 +61,9 @@ class ChatSession:
 
         if routed.name == "help":
             return self.handlers.help_text()
+        if routed.name == "clarify":
+            self.state.pending_intent = routed
+            return routed.follow_up
         if routed.name.startswith("confirm_"):
             self.state.pending_intent = routed
             return routed.follow_up
@@ -74,9 +77,17 @@ class ChatSession:
             self.state.active_entry_date = payload.get("date")
             return payload.get("message", "")
         if routed.name == "read_range":
+            year = routed.params["year"]
+            month = routed.params.get("month")
+            # Year-only → hierarchical browse view
+            if month is None:
+                text, browse_state = self.handlers.browse_year(year)
+                self.state.browse_state = browse_state
+                return text
+            # Specific month → flat list of entries
             payload = self.handlers.read_range(
-                year=routed.params["year"],
-                month=routed.params.get("month"),
+                year=year,
+                month=month,
                 limit=routed.params.get("limit"),
             )
             return payload.get("message", "")
@@ -132,6 +143,12 @@ class ChatSession:
             return "Okay."
 
         self.state.pending_intent = None
+
+        if pending.name == "clarify":
+            routed = route_message(message)
+            if routed.name in {"unknown", "clarify", "empty"}:
+                return "Sorry, I still couldn't understand that. Try `help` to see what I can do."
+            return self._dispatch(routed)
 
         if pending.name == "confirm_read":
             if text in {"yes", "y", "today"}:

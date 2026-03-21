@@ -23,7 +23,12 @@
       "Bash(.venv/bin/python -m pytest tests/ -v --tb=no -q)",
       "WebSearch",
       "Skill(gsd:add-phase)",
-      "Skill(gsd:add-phase:*)"
+      "Skill(gsd:add-phase:*)",
+      "Bash(ls -la /Users/tanmaybhuskute/Documents/ai-diary/*.py)",
+      "Skill(gsd:quick)",
+      "Skill(gsd:quick:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

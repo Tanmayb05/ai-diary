@@ -61,16 +61,53 @@ python main.py chat-ui
 
 Natural language examples you can type in the chat:
 
-```
+#### Writing
+
+```text
 i want to write
 i want to write for Jan 29 2026
+```
+
+#### Reading entries
+
+```text
 read today's entry
-read march 2023
-read only 3 entries from march 2023
+read Jan 29 2026
+show yesterday's entries
+```
+
+#### Browsing entries (hierarchical)
+
+```text
+show my entries              # overview: recent + months + years
+show entries in 2023         # year view → month → week → entry
+show entries in march 2026   # month view → weeks → entries
+show last month's entries
+show this year's entries
+show entries in the month of feb 2026
+```
+
+#### Period summaries (AI-generated)
+
+```text
+summarize 2025
+show summary for march 2026
+recap of last year
+how was my february 2026
+```
+
+#### Todos
+
+```text
 show my todos
 add todo finish thesis draft
 mark task 2 done
 delete task 3
+```
+
+#### Other
+
+```text
 help
 exit
 ```

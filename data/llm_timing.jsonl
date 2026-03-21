@@ -219,3 +219,5 @@
 {"ts": "2026-03-21T08:34:46", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2583, "response_chars": 56, "elapsed_s": 1.252}
 {"ts": "2026-03-21T08:35:03", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2585, "response_chars": 101, "elapsed_s": 1.742}
 {"ts": "2026-03-21T08:35:10", "model": "llama3.1:8b", "call_type": "answer_with_facts", "prompt_chars": 5295, "response_chars": 165, "elapsed_s": 7.165}
+{"ts": "2026-03-21T08:36:06", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2591, "response_chars": 107, "elapsed_s": 4.085}
+{"ts": "2026-03-21T08:36:13", "model": "llama3.1:8b", "call_type": "answer_with_facts", "prompt_chars": 5301, "response_chars": 99, "elapsed_s": 6.574}

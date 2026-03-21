@@ -12,11 +12,17 @@ Each phase file has full context, skeleton code, and exact file locations.
 | 3 | PHASE_3_CONFLICT_DETECTION.md | NOT STARTED | Detect when new facts contradict old ones |
 | 4 | PHASE_4_BM25_SEARCH.md | NOT STARTED | Better entry retrieval with BM25 ranking |
 | 5 | PHASE_5_PERIODIC_DIGEST.md | NOT STARTED | Proactive weekly digest + pattern surfacing |
+| 6 | PHASE_6_SQLITE_MIGRATION.md | NOT STARTED | Migrate all JSON data to SQLite (schema + data) |
+| 7 | PHASE_7_EMBEDDINGS.md | NOT STARTED | Generate + store embeddings via nomic-embed-text |
+| 8 | PHASE_8_HYBRID_SEARCH.md | NOT STARTED | Hybrid FTS5 + vector search with RRF |
 
 ## Dependency order
 1 → 2 → 3 (linear)
-4 → standalone (can be done anytime)
+4 → standalone (can be done anytime, superseded by Phase 8)
 5 → benefits from 1+3 but works without them
+6 → prerequisite for 7 and 8
+7 → prerequisite for 8
+6 → 7 → 8 (linear)
 
 ## Codebase quick reference
 

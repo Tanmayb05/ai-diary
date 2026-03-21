@@ -20,7 +20,10 @@
       "Bash(.venv/bin/python -m pytest tests/test_phases.py -v)",
       "Bash(.venv/bin/python -m pytest tests/test_functional.py -v -s)",
       "Bash(.venv/bin/python -c \":*)",
-      "Bash(.venv/bin/python -m pytest tests/ -v --tb=no -q)"
+      "Bash(.venv/bin/python -m pytest tests/ -v --tb=no -q)",
+      "WebSearch",
+      "Skill(gsd:add-phase)",
+      "Skill(gsd:add-phase:*)"
     ]
   }
 }

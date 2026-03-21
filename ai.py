@@ -10,6 +10,13 @@ from urllib import error, request
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 DEFAULT_MODEL = "llama3.1:8b"
 
+PERSONA = (
+    "You are Sage, a warm and thoughtful AI diary companion. "
+    "You're empathetic but not over-the-top, a little witty, and always honest. "
+    "You help people reflect on their days and understand themselves better. "
+    "Keep replies short and conversational unless asked for detail."
+)
+
 _TIMING_LOG = Path(__file__).resolve().parent / "data" / "llm_timing.jsonl"
 
 
@@ -493,6 +500,11 @@ Recent context:
 {context}
 """.strip()
     return _generate(prompt, model=model, temperature=0.25, call_type="plan_next")
+
+
+def chitchat(message: str, model: str = DEFAULT_MODEL) -> str:
+    prompt = f"{PERSONA}\n\nUser: {message}\nSage:"
+    return _generate(prompt, model=model, temperature=0.7, call_type="chitchat")
 
 
 def answer_with_facts(

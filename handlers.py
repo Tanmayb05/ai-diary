@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
-from ai import DEFAULT_MODEL, AIError, analyze_entry, answer_with_facts, extract_tasks, generate_reflection
+from ai import DEFAULT_MODEL, AIError, analyze_entry, answer_with_facts, chitchat, extract_tasks, generate_reflection
 from diary import get_entries_for_date, load_entries, load_entry_store, render_entries_for_day, render_task_candidate, upsert_entry
 from facts import load_facts, render_facts
 from prompts import mood_choices
@@ -197,7 +197,9 @@ class ChatHandlers:
             return f"AI unavailable: {exc}"
 
     def unknown(self, message: str) -> str:
-        return f"I couldn't route that yet: {message}\nTry `help`."
+        if not message:
+            return "Try `help` to see what I can do."
+        return chitchat(message, model=self.model)
 
 
 def build_legacy_write_args(date_value: str | None, skip_ai: bool, model: str) -> argparse.Namespace:

@@ -212,3 +212,10 @@
 {"ts": "2026-03-17T09:45:16", "model": "llama3.1:8b", "call_type": "answer_with_facts", "prompt_chars": 5284, "response_chars": 33, "elapsed_s": 5.553}
 {"ts": "2026-03-17T09:45:40", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2570, "response_chars": 87, "elapsed_s": 3.602}
 {"ts": "2026-03-17T09:45:47", "model": "llama3.1:8b", "call_type": "answer_with_facts", "prompt_chars": 5281, "response_chars": 114, "elapsed_s": 6.429}
+{"ts": "2026-03-21T03:20:46", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2556, "response_chars": 53, "elapsed_s": 11.464}
+{"ts": "2026-03-21T08:34:07", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2556, "response_chars": 53, "elapsed_s": 8.559}
+{"ts": "2026-03-21T08:34:08", "model": "llama3.1:8b", "call_type": "chitchat", "prompt_chars": 281, "response_chars": 91, "elapsed_s": 1.543}
+{"ts": "2026-03-21T08:34:25", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2577, "response_chars": 50, "elapsed_s": 3.375}
+{"ts": "2026-03-21T08:34:46", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2583, "response_chars": 56, "elapsed_s": 1.252}
+{"ts": "2026-03-21T08:35:03", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2585, "response_chars": 101, "elapsed_s": 1.742}
+{"ts": "2026-03-21T08:35:10", "model": "llama3.1:8b", "call_type": "answer_with_facts", "prompt_chars": 5295, "response_chars": 165, "elapsed_s": 7.165}

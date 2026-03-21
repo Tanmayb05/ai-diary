@@ -108,6 +108,65 @@ def list_entry_dates(limit: int | None = None) -> list[str]:
     return [row["date"] for row in rows]
 
 
+def get_overview_data() -> dict:
+    """Returns recent dates, last 3 months with entries, and all years with counts."""
+    db = get_db()
+    recent_rows = db.execute(
+        "SELECT date FROM entries ORDER BY date DESC LIMIT 7"
+    ).fetchall()
+    recent = [row["date"] for row in recent_rows]
+
+    month_rows = db.execute(
+        """SELECT strftime('%Y', date) AS year, strftime('%m', date) AS month, COUNT(*) AS cnt
+           FROM entries
+           GROUP BY year, month
+           ORDER BY year DESC, month DESC
+           LIMIT 3"""
+    ).fetchall()
+    months = [(int(r["year"]), int(r["month"]), r["cnt"]) for r in month_rows]
+
+    year_rows = db.execute(
+        """SELECT strftime('%Y', date) AS year, COUNT(*) AS cnt
+           FROM entries
+           GROUP BY year
+           ORDER BY year DESC"""
+    ).fetchall()
+    years = [(int(r["year"]), r["cnt"]) for r in year_rows]
+
+    return {"recent": recent, "months": months, "years": years}
+
+
+def get_entries_by_year_summary(year: int) -> dict[int, list[str]]:
+    """Returns mapping of month_num -> [dates] for the given year."""
+    db = get_db()
+    rows = db.execute(
+        "SELECT date FROM entries WHERE strftime('%Y', date) = ? ORDER BY date",
+        (str(year),),
+    ).fetchall()
+    result: dict[int, list[str]] = {}
+    for row in rows:
+        month_num = int(row["date"][5:7])
+        result.setdefault(month_num, []).append(row["date"])
+    return result
+
+
+def get_entries_by_month_summary(year: int, month: int) -> dict[int, list[str]]:
+    """Returns mapping of ISO week_num -> [dates] for the given year+month."""
+    import datetime as _dt
+    db = get_db()
+    prefix = f"{year}-{month:02d}-"
+    rows = db.execute(
+        "SELECT date FROM entries WHERE date LIKE ? ORDER BY date",
+        (prefix + "%",),
+    ).fetchall()
+    result: dict[int, list[str]] = {}
+    for row in rows:
+        d = _dt.date.fromisoformat(row["date"])
+        week_num = d.isocalendar()[1]
+        result.setdefault(week_num, []).append(row["date"])
+    return result
+
+
 def upsert_entry(
     entry_date: str | None,
     free_text: str,

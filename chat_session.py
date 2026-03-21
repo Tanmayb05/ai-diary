@@ -99,6 +99,12 @@ class ChatSession:
                 raw = input("Task id to delete\n> ").strip()
                 task_id = int(raw) if raw.isdigit() else None
             return self.handlers.todo_delete(task_id)
+        if routed.name == "summarize":
+            return self.handlers.summarize_period(
+                year=routed.params["year"],
+                month=routed.params.get("month"),
+                label=routed.params.get("label"),
+            )
         if routed.name == "list_entries":
             text, browse_state = self.handlers.list_entries()
             self.state.browse_state = browse_state

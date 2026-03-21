@@ -79,6 +79,8 @@ class ChatHandlers:
                 "- delete task 3",
                 "- show facts",
                 "- when is my birthday",
+                "- show summary for 2026",
+                "- summarize march 2026",
                 "- exit",
             ]
         )

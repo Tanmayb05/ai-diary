@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from browse_state import BrowseState
 from intent_router import RoutedIntent, route_message
 
 
@@ -12,6 +13,7 @@ class ChatSessionState:
     last_intent: str | None = None
     last_rendered_tasks: list[dict[str, Any]] = field(default_factory=list)
     pending_intent: RoutedIntent | None = None
+    browse_state: BrowseState | None = None
 
 
 class ChatSession:
@@ -30,6 +32,12 @@ class ChatSession:
             except EOFError:
                 print()
                 return
+
+            if self.state.browse_state is not None:
+                response = self._handle_browse_input(message)
+                if response:
+                    print(response)
+                continue
 
             if self.state.pending_intent is not None:
                 response = self._resolve_pending(message)
@@ -91,6 +99,10 @@ class ChatSession:
                 raw = input("Task id to delete\n> ").strip()
                 task_id = int(raw) if raw.isdigit() else None
             return self.handlers.todo_delete(task_id)
+        if routed.name == "list_entries":
+            text, browse_state = self.handlers.list_entries()
+            self.state.browse_state = browse_state
+            return text
         if routed.name == "show_facts":
             return self.handlers.show_facts()
         if routed.name == "ask":
@@ -153,3 +165,84 @@ class ChatSession:
             return self._dispatch(routed)
 
         return self.handlers.unknown(message=message)
+
+    def _handle_browse_input(self, message: str) -> str:
+        bs = self.state.browse_state
+        if bs is None:
+            return ""
+
+        text = message.strip().lower()
+
+        if text in {"back", "b"}:
+            if bs.history:
+                self.state.browse_state = bs.history[-1]
+            else:
+                self.state.browse_state = None
+                return "Exited browse."
+            return self._render_current_browse()
+
+        if text.isdigit():
+            idx = int(text) - 1
+            if idx < 0 or idx >= len(bs.options):
+                return "Invalid selection. Type a number or 'back'."
+            opt = bs.options[idx]
+            opt_type = opt["type"]
+
+            if opt_type == "entry":
+                payload = self.handlers.read_entry(date_value=opt["date"])
+                self.state.browse_state = None
+                return payload.get("message", "")
+
+            prev = BrowseState(
+                level=bs.level,
+                context=bs.context,
+                options=bs.options,
+                history=bs.history,
+            )
+
+            if opt_type == "year":
+                new_text, new_bs = self.handlers.browse_year(opt["year"])
+                new_bs.history = [prev] + new_bs.history
+                self.state.browse_state = new_bs
+                return new_text
+
+            if opt_type == "month":
+                new_text, new_bs = self.handlers.browse_month(opt["year"], opt["month"])
+                new_bs.history = [prev] + new_bs.history
+                self.state.browse_state = new_bs
+                return new_text
+
+            if opt_type == "week":
+                dates = opt["dates"]
+                if len(dates) == 1:
+                    payload = self.handlers.read_entry(date_value=dates[0])
+                    self.state.browse_state = None
+                    return payload.get("message", "")
+                new_text, new_bs = self.handlers.browse_week(
+                    opt["year"], opt["month"], opt["week_num"], dates
+                )
+                new_bs.history = [prev] + new_bs.history
+                self.state.browse_state = new_bs
+                return new_text
+
+        return "Invalid selection. Type a number or 'back'."
+
+    def _render_current_browse(self) -> str:
+        """Re-render the current browse state after going back."""
+        bs = self.state.browse_state
+        if bs is None:
+            return ""
+        if bs.level == "overview":
+            lines = []
+            for i, opt in enumerate(bs.options, 1):
+                lines.append(f"{i:>3}. {opt['label']}")
+            lines.append("\nType a number to open, or 'back' to exit.")
+            return "\n".join(lines)
+        lines = []
+        for i, opt in enumerate(bs.options, 1):
+            lines.append(f"{i:>3}. {opt['label']}")
+        prompt = "Type a number to open, or 'back' to go up."
+        if bs.level == "week":
+            prompt = "Type a number to read the entry, or 'back' to go up."
+        lines.append(f"\n{prompt}")
+        return "\n".join(lines)

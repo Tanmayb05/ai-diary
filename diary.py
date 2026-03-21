@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
+import struct
 from collections import Counter
 from typing import Any
 
-from db import get_db
+from db import get_db, load_vec_extension
 from prompts import list_prompts
 from utils import normalize_date, timestamp
+
+EMBED_DIM = 768
+RRF_K = 60
+FTS_LIMIT = 20
+VEC_LIMIT = 20
 
 _ENTRY_COLUMNS = {"entry", "mood", "highlight", "sentiment", "sentiment_label",
                   "mood_alignment", "created_at", "updated_at", "saved_at"}
@@ -458,108 +464,156 @@ def find_similar_entries(target_date: str | None, limit: int = 3) -> tuple[str, 
     return key, matches[:limit]
 
 
-def resurface_entries(
-    query: str,
-    *,
-    limit: int = 5,
-) -> list[dict[str, Any]]:
+def resurface_entries(query: str, *, limit: int = 5) -> list[dict[str, Any]]:
     """
-    BM25-ranked retrieval over diary entries.
-    Falls back to keyword overlap if rank_bm25 is not installed.
+    Hybrid FTS5 + vector search with Reciprocal Rank Fusion.
+    Falls back to FTS5-only if embeddings are unavailable.
     """
-    cleaned_query = str(query or "").strip().lower()
-    if not cleaned_query:
+    query = (query or "").strip()
+    if not query:
         return []
 
-    entries = load_entries()
-    if not entries:
+    db = get_db()
+    fts_results = _fts_search(db, query, limit=FTS_LIMIT)
+    vec_results = _vec_search(db, query, limit=VEC_LIMIT)
+
+    return _rrf_merge(fts_results, vec_results, limit=limit)
+
+
+def _fts_escape(query: str) -> str:
+    """Escape user query for safe FTS5 MATCH.
+    Strips FTS5 special chars and returns a simple AND-of-terms query.
+    Wraps each token in quotes to prevent FTS5 syntax errors.
+    """
+    # Remove FTS5 operator chars
+    safe = query.replace('"', ' ').replace('*', ' ').replace('-', ' ')
+    safe = safe.replace('(', ' ').replace(')', ' ').replace('^', ' ')
+    tokens = safe.split()
+    if not tokens:
+        return ""
+    # Wrap each token so FTS5 treats them as literals
+    return " ".join(f'"{t}"' for t in tokens)
+
+
+def _fts_search(db, query: str, limit: int) -> list[dict]:
+    """FTS5 full-text search using SQLite built-in BM25 ranking."""
+    escaped = _fts_escape(query)
+    if not escaped:
+        return []
+    try:
+        rows = db.execute("""
+            SELECT
+                e.id,
+                e.date,
+                e.entry,
+                e.highlight,
+                e.metadata,
+                bm25(entries_fts) AS score
+            FROM entries_fts
+            JOIN entries e ON e.id = entries_fts.rowid
+            WHERE entries_fts MATCH ?
+            ORDER BY score
+            LIMIT ?
+        """, (escaped, limit)).fetchall()
+    except Exception:
         return []
 
-    # Build corpus: one document per entry
-    # Concatenate all searchable text for each entry
-    dates = sorted(entries.keys(), reverse=True)
-    corpus_texts = []
-    for d in dates:
-        item = entries[d]
-        parts = [
-            item.get("entry", ""),
-            item.get("highlight", ""),
-            " ".join(item.get("goals", []) or []),
-            " ".join(item.get("entities", []) or []),
-            " ".join(item.get("tags", []) or []),
-            " ".join(item.get("wins", []) or []),
-        ]
-        corpus_texts.append(" ".join(parts))
+    results = []
+    for i, row in enumerate(rows):
+        meta = json.loads(row["metadata"] or "{}")
+        results.append({
+            "id":        row["id"],
+            "date":      row["date"],
+            "score":     float(row["score"]),
+            "rank":      i + 1,
+            "source":    "fts",
+            "highlight": row["highlight"] or "",
+            "excerpt":   (row["entry"] or "")[:160],
+            "reasons":   [f"fts match (rank {i+1})"],
+            **{k: meta.get(k) for k in ("tags", "goals", "entities", "wins") if meta.get(k)},
+        })
+    return results
+
+
+def _vec_search(db, query: str, limit: int) -> list[dict]:
+    """Vector similarity search using sqlite-vec KNN."""
+    if not load_vec_extension(db):
+        return []
 
     try:
-        from rank_bm25 import BM25Okapi
+        from embeddings import generate_embedding
+        vec = generate_embedding(query)
+        packed = struct.pack(f"{EMBED_DIM}f", *vec)
+    except Exception:
+        return []
 
-        # Tokenize corpus and query using existing _entry_keywords tokenizer
-        tokenized_corpus = [list(_entry_keywords(text)) for text in corpus_texts]
-        tokenized_query = list(_entry_keywords(cleaned_query))
+    try:
+        rows = db.execute("""
+            SELECT
+                ee.entry_id,
+                ee.distance,
+                e.date,
+                e.entry,
+                e.highlight,
+                e.metadata
+            FROM entry_embeddings ee
+            JOIN entries e ON e.id = ee.entry_id
+            WHERE embedding MATCH ?
+              AND k = ?
+            ORDER BY distance
+        """, (packed, limit)).fetchall()
+    except Exception:
+        return []
 
-        bm25 = BM25Okapi(tokenized_corpus)
-        scores = bm25.get_scores(tokenized_query)
-
-        # Collect results above threshold
-        results = []
-        for i, score in enumerate(scores):
-            if score <= 0:
-                continue
-            entry_date = dates[i]
-            item = entries[entry_date]
-            results.append({
-                "date": entry_date,
-                "score": float(score),
-                "reasons": [f"bm25 score: {score:.2f}"],
-                "highlight": item.get("highlight", ""),
-                "excerpt": str(item.get("entry", "")).strip()[:160],
-            })
-
-        results.sort(key=lambda x: -x["score"])
-        return results[:limit]
-
-    except ImportError:
-        # Fallback to original keyword overlap if rank_bm25 not installed
-        return _resurface_keyword_fallback(cleaned_query, entries, limit)
-
-
-def _resurface_keyword_fallback(
-    cleaned_query: str,
-    entries: dict[str, Any],
-    limit: int,
-) -> list[dict[str, Any]]:
-    """Original keyword overlap scoring — kept as fallback."""
-    query_terms = _entry_keywords(cleaned_query)
-    matches = []
-    for entry_date, item in entries.items():
-        features = _entry_feature_sets(item)
-        score = 0
-        reasons = []
-
-        for field_name in ("tags", "goals", "entities", "habits", "wins", "gratitude"):
-            if cleaned_query in features[field_name]:
-                score += 6
-                reasons.append(f"matched {field_name[:-1] if field_name.endswith('s') else field_name}")
-
-        matching_terms = sorted(query_terms & features["keywords"])
-        if matching_terms:
-            score += len(matching_terms) * 2
-            reasons.append(f"keyword overlap: {', '.join(matching_terms[:4])}")
-
-        if score <= 0:
-            continue
-
-        matches.append({
-            "date": entry_date,
-            "score": score,
-            "reasons": reasons,
-            "highlight": item.get("highlight", ""),
-            "excerpt": str(item.get("entry", "")).strip()[:160],
+    results = []
+    for i, row in enumerate(rows):
+        meta = json.loads(row["metadata"] or "{}")
+        results.append({
+            "id":        row["entry_id"],
+            "date":      row["date"],
+            "score":     float(row["distance"]),
+            "rank":      i + 1,
+            "source":    "vec",
+            "highlight": row["highlight"] or "",
+            "excerpt":   (row["entry"] or "")[:160],
+            "reasons":   [f"semantic match (rank {i+1})"],
+            **{k: meta.get(k) for k in ("tags", "goals", "entities", "wins") if meta.get(k)},
         })
+    return results
 
-    matches.sort(key=lambda x: (-x["score"], x["date"]))
-    return matches[:limit]
+
+def _rrf_merge(
+    fts: list[dict],
+    vec: list[dict],
+    limit: int,
+    k: int = RRF_K,
+) -> list[dict]:
+    """
+    Reciprocal Rank Fusion: combine two ranked lists into one.
+    score(doc) = sum of 1/(k + rank) across all lists containing the doc.
+    """
+    scores: dict[int, float] = {}
+    docs:   dict[int, dict]  = {}
+
+    for result_list in (fts, vec):
+        for item in result_list:
+            doc_id = item["id"]
+            scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + item["rank"])
+            if doc_id not in docs:
+                docs[doc_id] = item
+            else:
+                existing = docs[doc_id]
+                existing["reasons"] = existing["reasons"] + item["reasons"]
+                if item["source"] != existing["source"]:
+                    existing["source"] = "hybrid"
+
+    ranked = sorted(scores.items(), key=lambda x: -x[1])
+    results = []
+    for doc_id, rrf_score in ranked[:limit]:
+        doc = docs[doc_id].copy()
+        doc["score"] = rrf_score
+        results.append(doc)
+    return results
 
 
 def sentiment_trends(days: int = 30) -> dict[str, Any]:

@@ -221,3 +221,12 @@
 {"ts": "2026-03-21T08:35:10", "model": "llama3.1:8b", "call_type": "answer_with_facts", "prompt_chars": 5295, "response_chars": 165, "elapsed_s": 7.165}
 {"ts": "2026-03-21T08:36:06", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2591, "response_chars": 107, "elapsed_s": 4.085}
 {"ts": "2026-03-21T08:36:13", "model": "llama3.1:8b", "call_type": "answer_with_facts", "prompt_chars": 5301, "response_chars": 99, "elapsed_s": 6.574}
+{"ts": "2026-03-21T09:07:25", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2556, "response_chars": 53, "elapsed_s": 8.596}
+{"ts": "2026-03-21T09:07:26", "model": "llama3.1:8b", "call_type": "chitchat", "prompt_chars": 281, "response_chars": 90, "elapsed_s": 1.89}
+{"ts": "2026-03-21T09:07:37", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2574, "response_chars": 91, "elapsed_s": 3.868}
+{"ts": "2026-03-21T09:07:42", "model": "llama3.1:8b", "call_type": "answer_with_facts", "prompt_chars": 4803, "response_chars": 33, "elapsed_s": 4.81}
+{"ts": "2026-03-21T09:17:22", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2586, "response_chars": 104, "elapsed_s": 9.172}
+{"ts": "2026-03-21T09:17:28", "model": "llama3.1:8b", "call_type": "answer_with_facts", "prompt_chars": 4806, "response_chars": 83, "elapsed_s": 5.468}
+{"ts": "2026-03-21T09:29:21", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2587, "response_chars": 106, "elapsed_s": 8.433}
+{"ts": "2026-03-21T09:29:26", "model": "llama3.1:8b", "call_type": "answer_with_facts", "prompt_chars": 4808, "response_chars": 60, "elapsed_s": 5.572}
+{"ts": "2026-03-21T09:29:43", "model": "llama3.1:8b", "call_type": "intent_routing", "prompt_chars": 2558, "response_chars": 70, "elapsed_s": 3.541}

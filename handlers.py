@@ -4,16 +4,53 @@ import argparse
 import calendar
 from typing import Any
 
-from ai import DEFAULT_MODEL, AIError, analyze_entry, answer_with_facts, chitchat, extract_tasks, generate_reflection
+from ai import DEFAULT_MODEL, AIError, analyze_entry, answer_with_facts, chitchat, extract_tasks, generate_period_summary, generate_reflection
 from browse_state import BrowseState
 from diary import (
     get_entries_by_month_summary, get_entries_by_year_summary,
-    get_entries_for_date, get_overview_data, list_entry_dates, load_entries,
+    get_entries_for_date, get_entries_for_period, get_overview_data, list_entry_dates, load_entries,
     load_entry_store, render_entries_for_day, render_task_candidate, upsert_entry,
 )
 from facts import load_facts, render_facts
 from prompts import mood_choices
 from todo import add_task, bulk_add_tasks, delete_task, list_tasks, mark_done, render_tasks
+
+
+def _build_entries_digest(entries: list[dict[str, Any]], max_entries: int = 50) -> tuple[str, bool]:
+    """Build a compact text digest of entries for LLM summarization.
+    Returns (digest_text, was_truncated)."""
+    truncated = len(entries) > max_entries
+    subset = entries[:max_entries]
+    parts = []
+    for e in subset:
+        lines = [f"Date: {e['date']}"]
+        if e.get("mood"):
+            lines.append(f"Mood: {e['mood']}")
+        if e.get("highlight"):
+            lines.append(f"Highlight: {e['highlight']}")
+        tags = e.get("tags") or []
+        if tags:
+            lines.append(f"Tags: {', '.join(tags)}")
+        if e.get("sentiment_label"):
+            lines.append(f"Sentiment: {e['sentiment_label']}")
+        entry_text = (e.get("entry") or "")[:300]
+        if entry_text:
+            lines.append(f"Entry: {entry_text}")
+        wins = e.get("wins") or []
+        if wins:
+            lines.append(f"Wins: {', '.join(str(w) for w in wins)}")
+        stress = e.get("stress_triggers") or []
+        if stress:
+            # stress_triggers may be strings or dicts
+            stress_strs = []
+            for s in stress:
+                if isinstance(s, dict):
+                    stress_strs.append(s.get("trigger", str(s)))
+                else:
+                    stress_strs.append(str(s))
+            lines.append(f"Stress: {', '.join(stress_strs)}")
+        parts.append("\n".join(lines))
+    return "\n\n---\n\n".join(parts), truncated
 
 
 def prompt_input(label: str, default: str = "") -> str:
@@ -294,6 +331,46 @@ class ChatHandlers:
 
     def show_facts(self) -> str:
         return render_facts(load_facts())
+
+    def summarize_period(self, year: int, month: int | None = None, label: str | None = None) -> str:
+        import calendar as _cal
+        if label is None:
+            label = _cal.month_name[month] + f" {year}" if month else str(year)
+
+        entries = get_entries_for_period(year, month)
+        if not entries:
+            return f"No entries found for {label}."
+
+        digest, truncated = _build_entries_digest(entries)
+        trunc_note = f" (showing first 50 of {len(entries)})" if truncated else ""
+        date_range = f"{entries[0]['date']} to {entries[-1]['date']}"
+
+        try:
+            summary = generate_period_summary(
+                entries_digest=digest,
+                label=label,
+                entry_count=len(entries),
+                date_range=date_range + trunc_note,
+                model=self.model,
+            )
+            return summary
+        except AIError as exc:
+            # Fallback: stats-only summary
+            moods = [e.get("mood") for e in entries if e.get("mood")]
+            all_tags: list[str] = []
+            for e in entries:
+                all_tags.extend(e.get("tags") or [])
+            from collections import Counter
+            top_tags = [t for t, _ in Counter(all_tags).most_common(5)]
+            lines = [
+                f"{label} Summary",
+                f"",
+                f"Entries: {len(entries)} ({date_range})",
+                f"AI unavailable: {exc}",
+            ]
+            if top_tags:
+                lines.append(f"Top tags: {', '.join(top_tags)}")
+            return "\n".join(lines)
 
     def ask(self, question: str) -> str:
         try:

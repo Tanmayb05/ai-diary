@@ -1,20 +1,11 @@
 from __future__ import annotations
+
+import json
 from dataclasses import dataclass
 from typing import Any
-from utils import DATA_DIR, load_json, save_json, timestamp
 
-FACTS_PATH = DATA_DIR / "facts.json"
-
-# Schema for a single fact entry:
-# {
-#   "value": "1998-04-12",
-#   "source_date": "2026-01-15",       # which diary entry it came from
-#   "source_excerpt": "today is my birthday...",
-#   "updated_at": "2026-01-15T10:22:00",
-#   "history": [                        # previous values before overwrite
-#     {"value": "...", "source_date": "...", "updated_at": "..."}
-#   ]
-# }
+from db import get_db
+from utils import timestamp
 
 
 @dataclass
@@ -28,12 +19,18 @@ class UpsertResult:
 
 def load_facts() -> dict[str, Any]:
     """Load all facts. Returns dict keyed by fact_type e.g. 'birthday'."""
-    data = load_json(FACTS_PATH, {})
-    return data if isinstance(data, dict) else {}
-
-
-def save_facts(facts: dict[str, Any]) -> None:
-    save_json(FACTS_PATH, facts)
+    db = get_db()
+    rows = db.execute("SELECT * FROM facts").fetchall()
+    return {
+        row["fact_type"]: {
+            "value": row["value"],
+            "source_date": row["source_date"],
+            "source_excerpt": row["source_excerpt"],
+            "updated_at": row["updated_at"],
+            "history": json.loads(row["history"] or "[]"),
+        }
+        for row in rows
+    }
 
 
 def upsert_fact(fact_type: str, value: str, source_date: str, source_excerpt: str = "") -> UpsertResult:
@@ -41,33 +38,42 @@ def upsert_fact(fact_type: str, value: str, source_date: str, source_excerpt: st
     Insert or update a fact. Moves old value to history before overwriting.
     Returns an UpsertResult with conflict detection info.
     """
-    facts = load_facts()
-    existing = facts.get(fact_type)
+    db = get_db()
+    existing_row = db.execute("SELECT * FROM facts WHERE fact_type=?", (fact_type,)).fetchone()
 
-    old_value = existing["value"] if existing else None
+    old_value = existing_row["value"] if existing_row else None
     is_conflict = (
         old_value is not None
         and old_value.lower().strip() != value.lower().strip()
     )
 
-    history = []
-    if existing:
-        history = existing.get("history", [])
+    history = json.loads(existing_row["history"] or "[]") if existing_row else []
+    if existing_row and existing_row["value"] != value.strip():
         history.append({
-            "value": existing["value"],
-            "source_date": existing["source_date"],
-            "updated_at": existing["updated_at"],
+            "value": existing_row["value"],
+            "source_date": existing_row["source_date"],
+            "updated_at": existing_row["updated_at"],
         })
 
+    now = timestamp()
     record = {
         "value": value.strip(),
         "source_date": source_date,
         "source_excerpt": source_excerpt,
-        "updated_at": timestamp(),
+        "updated_at": now,
         "history": history,
     }
-    facts[fact_type] = record
-    save_facts(facts)
+
+    db.execute(
+        """INSERT INTO facts (fact_type, value, source_date, source_excerpt, updated_at, history)
+           VALUES (?,?,?,?,?,?)
+           ON CONFLICT(fact_type) DO UPDATE SET
+             value=excluded.value, source_date=excluded.source_date,
+             source_excerpt=excluded.source_excerpt, updated_at=excluded.updated_at,
+             history=excluded.history""",
+        (fact_type, value.strip(), source_date, source_excerpt, now, json.dumps(history)),
+    )
+    db.commit()
 
     return UpsertResult(
         fact_type=fact_type,
@@ -80,12 +86,10 @@ def upsert_fact(fact_type: str, value: str, source_date: str, source_excerpt: st
 
 def delete_fact(fact_type: str) -> bool:
     """Returns True if deleted, False if not found."""
-    facts = load_facts()
-    if fact_type not in facts:
-        return False
-    del facts[fact_type]
-    save_facts(facts)
-    return True
+    db = get_db()
+    cursor = db.execute("DELETE FROM facts WHERE fact_type=?", (fact_type,))
+    db.commit()
+    return cursor.rowcount > 0
 
 
 def render_facts(facts: dict[str, Any]) -> str:

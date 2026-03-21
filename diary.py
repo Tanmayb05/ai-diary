@@ -1,50 +1,105 @@
 from __future__ import annotations
 
+import json
 from collections import Counter
 from typing import Any
 
+from db import get_db
 from prompts import list_prompts
-from utils import ENTRIES_PATH, load_json, normalize_date, save_json, timestamp
+from utils import normalize_date, timestamp
+
+_ENTRY_COLUMNS = {"entry", "mood", "highlight", "sentiment", "sentiment_label",
+                  "mood_alignment", "created_at", "updated_at", "saved_at"}
+
+
+def _row_to_entry(row) -> dict[str, Any]:
+    d = dict(row)
+    meta = json.loads(d.pop("metadata", "{}") or "{}")
+    d.pop("id", None)
+    d.pop("date", None)
+    return {**d, **meta}
+
+
+def _entry_to_row_params(date: str, entry: dict[str, Any]) -> tuple:
+    metadata = {k: v for k, v in entry.items() if k not in _ENTRY_COLUMNS}
+    return (
+        date,
+        entry.get("entry", ""),
+        entry.get("mood"),
+        entry.get("highlight"),
+        entry.get("sentiment"),
+        entry.get("sentiment_label"),
+        entry.get("mood_alignment"),
+        json.dumps(metadata),
+        entry.get("created_at"),
+        entry.get("updated_at"),
+        entry.get("saved_at"),
+    )
 
 
 def load_entries() -> dict[str, Any]:
-    entries = load_entry_store()
-    return {str(entry_date): aggregate_day_entries(items) for entry_date, items in entries.items()}
+    db = get_db()
+    rows = db.execute("SELECT * FROM entries ORDER BY date").fetchall()
+    return {row["date"]: _row_to_entry(row) for row in rows}
 
 
 def load_entry_store() -> dict[str, list[dict[str, Any]]]:
-    entries = load_json(ENTRIES_PATH, {})
-    if not isinstance(entries, dict):
-        return {}
-    return {str(entry_date): normalize_entry_list(item) for entry_date, item in entries.items()}
+    # SQLite stores one aggregated entry per date; wrap in list for API compatibility
+    db = get_db()
+    rows = db.execute("SELECT * FROM entries ORDER BY date").fetchall()
+    return {row["date"]: [_row_to_entry(row)] for row in rows}
 
 
 def save_entries(entries: dict[str, Any]) -> None:
-    save_entry_store({key: [normalize_entry_payload(value)] for key, value in entries.items()})
+    db = get_db()
+    for date, entry in entries.items():
+        normalized = normalize_entry_payload(entry)
+        params = _entry_to_row_params(date, normalized)
+        db.execute(
+            """INSERT INTO entries (date,entry,mood,highlight,sentiment,sentiment_label,
+               mood_alignment,metadata,created_at,updated_at,saved_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(date) DO UPDATE SET
+                 entry=excluded.entry, mood=excluded.mood, highlight=excluded.highlight,
+                 sentiment=excluded.sentiment, sentiment_label=excluded.sentiment_label,
+                 mood_alignment=excluded.mood_alignment, metadata=excluded.metadata,
+                 updated_at=excluded.updated_at, saved_at=excluded.saved_at""",
+            params,
+        )
+    db.commit()
 
 
 def save_entry_store(entries: dict[str, list[dict[str, Any]]]) -> None:
-    save_json(ENTRIES_PATH, {key: normalize_entry_list(value) for key, value in entries.items()})
+    # Aggregate multiple entries per day then upsert
+    aggregated = {date: aggregate_day_entries(items) for date, items in entries.items()}
+    save_entries(aggregated)
 
 
 def get_entry(entry_date: str | None = None) -> tuple[str, dict[str, Any] | None]:
     key = normalize_date(entry_date)
-    entries = load_entries()
-    return key, entries.get(key)
+    db = get_db()
+    row = db.execute("SELECT * FROM entries WHERE date=?", (key,)).fetchone()
+    if not row:
+        return key, None
+    return key, _row_to_entry(row)
 
 
 def get_entries_for_date(entry_date: str | None = None) -> tuple[str, list[dict[str, Any]]]:
     key = normalize_date(entry_date)
-    entries = load_entry_store()
-    return key, entries.get(key, [])
+    db = get_db()
+    row = db.execute("SELECT * FROM entries WHERE date=?", (key,)).fetchone()
+    if not row:
+        return key, []
+    return key, [_row_to_entry(row)]
 
 
 def list_entry_dates(limit: int | None = None) -> list[str]:
-    entries = load_entry_store()
-    dates = sorted(entries.keys(), reverse=True)
+    db = get_db()
     if limit is not None:
-        return dates[:limit]
-    return dates
+        rows = db.execute("SELECT date FROM entries ORDER BY date DESC LIMIT ?", (limit,)).fetchall()
+    else:
+        rows = db.execute("SELECT date FROM entries ORDER BY date DESC").fetchall()
+    return [row["date"] for row in rows]
 
 
 def upsert_entry(
@@ -71,7 +126,6 @@ def upsert_entry(
     entities: list[str] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     key = normalize_date(entry_date)
-    entries = load_entry_store()
     current_timestamp = timestamp()
 
     payload = {
@@ -100,9 +154,34 @@ def upsert_entry(
         "updated_at": current_timestamp,
         "created_at": current_timestamp,
     }
-    entries.setdefault(key, []).append(normalize_entry_payload(payload))
-    save_entry_store(entries)
-    return key, entries[key][-1]
+    normalized = normalize_entry_payload(payload)
+    db = get_db()
+
+    # If an existing entry exists for this date, merge (aggregate) before saving
+    existing_row = db.execute("SELECT * FROM entries WHERE date=?", (key,)).fetchone()
+    if existing_row:
+        existing = _row_to_entry(existing_row)
+        merged = aggregate_day_entries([existing, normalized])
+        merged["updated_at"] = current_timestamp
+        merged["saved_at"] = current_timestamp
+        final = normalize_entry_payload(merged)
+    else:
+        final = normalized
+
+    params = _entry_to_row_params(key, final)
+    db.execute(
+        """INSERT INTO entries (date,entry,mood,highlight,sentiment,sentiment_label,
+           mood_alignment,metadata,created_at,updated_at,saved_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)
+           ON CONFLICT(date) DO UPDATE SET
+             entry=excluded.entry, mood=excluded.mood, highlight=excluded.highlight,
+             sentiment=excluded.sentiment, sentiment_label=excluded.sentiment_label,
+             mood_alignment=excluded.mood_alignment, metadata=excluded.metadata,
+             updated_at=excluded.updated_at, saved_at=excluded.saved_at""",
+        params,
+    )
+    db.commit()
+    return key, final
 
 
 def render_entry(entry_date: str, entry: dict[str, Any]) -> str:
@@ -237,15 +316,19 @@ def render_entries_for_day(entry_date: str, entries: list[dict[str, Any]]) -> st
 
 
 def mood_trend(days: int = 7) -> list[tuple[str, str]]:
-    entries = load_entries()
-    dates = sorted(entries.keys(), reverse=True)[:days]
-    return [(day, entries[day].get("mood", "-")) for day in reversed(dates)]
+    db = get_db()
+    rows = db.execute(
+        "SELECT date, mood FROM entries ORDER BY date DESC LIMIT ?", (days,)
+    ).fetchall()
+    return [(row["date"], row["mood"] or "-") for row in reversed(rows)]
 
 
 def get_recent_entries(limit: int = 7) -> list[tuple[str, dict[str, Any]]]:
-    entries = load_entries()
-    dates = sorted(entries.keys(), reverse=True)[:limit]
-    return [(entry_date, entries[entry_date]) for entry_date in dates]
+    db = get_db()
+    rows = db.execute(
+        "SELECT * FROM entries ORDER BY date DESC LIMIT ?", (limit,)
+    ).fetchall()
+    return [(row["date"], _row_to_entry(row)) for row in rows]
 
 
 def get_entry_tags(entry_date: str | None = None) -> tuple[str, list[str]]:

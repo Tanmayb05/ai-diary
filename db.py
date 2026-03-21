@@ -93,6 +93,26 @@ def _ensure_schema(db: sqlite3.Connection) -> None:
             source_excerpt TEXT,
             created_at  TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS characters (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            name                TEXT UNIQUE NOT NULL,
+            relationship        TEXT,
+            job                 TEXT,
+            location            TEXT,
+            birthday            TEXT,
+            personality_traits  TEXT NOT NULL DEFAULT '[]',
+            interests_hobbies   TEXT NOT NULL DEFAULT '[]',
+            family_members      TEXT NOT NULL DEFAULT '[]',
+            health_notes        TEXT,
+            contact_info        TEXT,
+            last_seen           TEXT,
+            status              TEXT,
+            incidents           TEXT NOT NULL DEFAULT '[]',
+            fact_history        TEXT NOT NULL DEFAULT '[]',
+            created_at          TEXT,
+            updated_at          TEXT
+        );
     """)
     db.commit()
 

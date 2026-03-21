@@ -180,6 +180,114 @@ def _clean_fact_candidates(value: list) -> list[dict[str, str]]:
     return items
 
 
+def extract_character_facts(
+    entry_text: str,
+    entry_date: str,
+    model: str = DEFAULT_MODEL,
+) -> list[dict[str, Any]]:
+    """
+    Identify named people mentioned in the entry (not the author) and extract
+    structured facts and notable incidents for each.
+    Returns list of {name, facts: {...}, incidents: [...]}
+    """
+    prompt = f"""
+Identify every named person mentioned in the diary entry below (not the author/writer).
+For each person, extract structured facts and any notable incidents.
+
+Return strict JSON only using this schema:
+[
+  {{
+    "name": "Alice",
+    "facts": {{
+      "relationship": "best friend",
+      "job": "software engineer at Google",
+      "location": "San Francisco",
+      "birthday": "1995-04-12",
+      "personality_traits": ["funny", "direct"],
+      "interests_hobbies": ["hiking", "cooking"],
+      "family_members": ["has a sister named Priya"],
+      "health_notes": "",
+      "contact_info": "",
+      "last_seen": "{entry_date}",
+      "status": "close"
+    }},
+    "incidents": [
+      "Alice got promoted to senior engineer today"
+    ]
+  }}
+]
+
+Rules:
+- Only include named people — not the author/writer of the diary.
+- Only extract facts clearly stated or strongly implied in the entry. Do not invent.
+- "incidents" should be notable one-time events (e.g. a fight, a promotion, a move), not traits.
+- Omit empty fields from "facts" — do not include keys with empty values.
+- Return [] if no named people are found.
+- Do not include markdown or commentary.
+
+Today's date: {entry_date}
+Diary entry:
+{entry_text}
+""".strip()
+    raw = _generate(prompt, model=model, temperature=0.0, call_type="character_extraction")
+    parsed = _parse_json(raw)
+    if not isinstance(parsed, list):
+        return []
+    result = []
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        if not name:
+            continue
+        facts = item.get("facts") or {}
+        if not isinstance(facts, dict):
+            facts = {}
+        incidents = item.get("incidents") or []
+        if not isinstance(incidents, list):
+            incidents = []
+        incidents = [str(i).strip() for i in incidents if str(i).strip()]
+        result.append({"name": name, "facts": facts, "incidents": incidents})
+    return result
+
+
+def detect_duplicate_incident(
+    existing_incidents: list[dict],
+    new_incident: dict,
+    model: str = DEFAULT_MODEL,
+) -> bool:
+    """
+    Returns True if new_incident describes the same real-world event as any existing incident.
+    Conservative: returns False on any error.
+    """
+    if not existing_incidents:
+        return False
+
+    existing_lines = "\n".join(
+        f"{i + 1}. [{inc.get('date', '?')}] {inc.get('summary', '')}"
+        for i, inc in enumerate(existing_incidents)
+    )
+    prompt = f"""
+You are checking if a new incident is the same event as any existing one.
+
+Existing incidents:
+{existing_lines}
+
+New incident: [{new_incident.get('date', '?')}] {new_incident.get('summary', '')}
+
+Return strict JSON only: {{"is_duplicate": true}} or {{"is_duplicate": false}}
+Two incidents are the same event if they describe the same real-world occurrence, even if worded differently or from different dates (e.g. a fight mentioned on March 5 and reflected on again March 7).
+""".strip()
+    try:
+        raw = _generate(prompt, model=model, temperature=0.0, call_type="duplicate_incident_check")
+        parsed = _parse_json(raw)
+        if isinstance(parsed, dict):
+            return bool(parsed.get("is_duplicate", False))
+    except Exception:
+        pass
+    return False
+
+
 def extract_tasks(entry_text: str, model: str = DEFAULT_MODEL) -> list[dict[str, str]]:
     prompt = f"""
 Extract actionable tasks from the diary entry.
@@ -529,16 +637,33 @@ def answer_with_facts(
     question: str,
     facts: dict[str, Any],
     entries: dict[str, Any],
+    characters: dict[str, Any] | None = None,
     model: str = DEFAULT_MODEL,
 ) -> str:
     """
     Answer a question using the fact store as the primary source,
     falling back to recent diary entries for context.
+    Also uses character facts when available.
     """
     facts_block = ""
     if facts:
         lines = [f"- {k}: {v['value']}" for k, v in sorted(facts.items())]
         facts_block = "Known personal facts:\n" + "\n".join(lines)
+
+    characters_block = ""
+    if characters:
+        char_lines = []
+        for char_name, char in sorted(characters.items()):
+            parts = []
+            if char.get("relationship"):
+                parts.append(char["relationship"])
+            if char.get("job"):
+                parts.append(char["job"])
+            if char.get("location"):
+                parts.append(f"based in {char['location']}")
+            desc = ", ".join(parts)
+            char_lines.append(f"- {char_name}" + (f" ({desc})" if desc else ""))
+        characters_block = "Known people in the diary:\n" + "\n".join(char_lines)
 
     context_lines = []
     for entry_date in sorted(entries.keys(), reverse=True)[:7]:
@@ -552,19 +677,22 @@ def answer_with_facts(
 
     prompt = f"""
 Answer the user's question using the sources below.
-Prefer the Known personal facts section for direct personal questions.
-Use diary entries only for questions about events, feelings, or patterns over time.
+Prefer Known personal facts for direct questions about the diary author.
+Use Known people for questions about specific people mentioned in the diary.
+Use diary entries for questions about events, feelings, or patterns over time.
 If you cannot answer from the provided context, say "I don't know."
 Be concise and specific.
 
 IMPORTANT rules:
 - The diary entries are written by the diary author (first person "I"). Do not confuse the author with other people mentioned in the entries.
-- If a question is about a specific person (e.g. "Aai's birthday", "mom's birthday"), only answer if the entries explicitly state that person's birthday. Do not substitute the author's own birthday.
+- If a question is about a specific person (e.g. "Aai's birthday", "mom's birthday"), only answer if the entries or known people explicitly state that person's birthday. Do not substitute the author's own birthday.
 - If the entries mention the author's birthday but the question asks about someone else's birthday, say "I don't know."
 
 Question: {question}
 
 {facts_block}
+
+{characters_block}
 
 Recent diary entries:
 {entries_block}

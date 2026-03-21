@@ -4,7 +4,9 @@ import argparse
 import calendar
 from typing import Any
 
-from ai import DEFAULT_MODEL, AIError, analyze_entry, answer_with_facts, chitchat, extract_tasks, generate_period_summary, generate_reflection
+from ai import DEFAULT_MODEL, AIError, analyze_entry, answer_with_facts, chitchat, extract_character_facts, extract_tasks, generate_period_summary, generate_reflection
+from characters import add_incident, get_all_characters, get_character, load_characters, render_character_card, upsert_character
+from utils import get_setting, set_setting, today_key
 from browse_state import BrowseState
 from diary import (
     get_entries_by_month_summary, get_entries_by_year_summary,
@@ -99,6 +101,13 @@ class ChatHandlers:
                 "  when is my birthday",
                 "  what mood was I in last week",
                 "",
+                "Characters",
+                "  show characters             (list all known people)",
+                "  tell me about Alice         (full profile card)",
+                "  who is mom",
+                "  update Alice                (add/edit a fact interactively)",
+                "  add fact about Rahul",
+                "",
                 "  exit",
             ]
         )
@@ -171,6 +180,19 @@ class ChatHandlers:
             advice=advice,
             entities=entities,
         )
+
+        # Extract and store character facts from entry
+        try:
+            char_results = extract_character_facts(entry_text, saved_date, model=self.model)
+            for char in char_results:
+                char_name = char.get("name", "").strip()
+                if not char_name:
+                    continue
+                upsert_character(char_name, char.get("facts") or {}, saved_date)
+                for incident_text in char.get("incidents") or []:
+                    add_incident(char_name, incident_text, saved_date)
+        except AIError:
+            pass
 
         lines = [f"Saved entry for {saved_date} at {payload.get('updated_at', payload.get('saved_at', ''))}."]
         if payload.get("reflection"):
@@ -394,9 +416,67 @@ class ChatHandlers:
 
     def ask(self, question: str) -> str:
         try:
-            return answer_with_facts(question, load_facts(), load_entries(), model=self.model)
+            return answer_with_facts(
+                question,
+                load_facts(),
+                load_entries(),
+                characters=load_characters(),
+                model=self.model,
+            )
         except AIError as exc:
             return f"AI unavailable: {exc}"
+
+    def show_characters(self) -> str:
+        chars = get_all_characters()
+        if not chars:
+            return "No characters saved yet."
+        lines = [f"{c['name']} — {c.get('relationship') or 'unknown relationship'}" for c in chars]
+        return "\n".join(lines)
+
+    def show_character(self, name: str) -> str:
+        name = name.strip().title()
+        char = get_character(name)
+        if not char:
+            return f"No character found named '{name}'."
+        return render_character_card(char)
+
+    def add_character_fact_interactive(self, name: str, raw_text: str) -> str:
+        name = name.strip().title()
+        mode = get_setting("character_manual_entry_mode", default="interactive")
+
+        if mode == "auto":
+            try:
+                results = extract_character_facts(f"{name}: {raw_text}", today_key(), model=self.model)
+                for char in results:
+                    if char.get("name", "").strip().lower() == name.lower():
+                        upsert_character(name, char.get("facts") or {}, today_key())
+                        for inc in char.get("incidents") or []:
+                            add_incident(name, inc, today_key())
+                return f"Updated facts for {name}."
+            except AIError as exc:
+                return f"AI unavailable: {exc}"
+
+        # Interactive mode
+        fields = [
+            "relationship", "job", "location", "birthday",
+            "personality_traits", "interests_hobbies", "family_members",
+            "health_notes", "contact_info", "last_seen", "status",
+        ]
+        print(f"\nWhich field to update for {name}?")
+        for i, f in enumerate(fields, 1):
+            print(f"  {i:>2}. {f}")
+        choice_raw = input("> ").strip()
+        if not choice_raw.isdigit() or not (1 <= int(choice_raw) <= len(fields)):
+            return "Invalid choice. Cancelled."
+        field = fields[int(choice_raw) - 1]
+        value = input(f"New value for {field}\n> ").strip()
+        if not value:
+            return "No value provided. Cancelled."
+        confirm = input(f"Set {name}.{field} = {value!r}? (y/n)\n> ").strip().lower()
+        if confirm not in {"y", "yes"}:
+            return "Cancelled."
+        upsert_character(name, {field: value}, today_key())
+        return f"Updated {field} for {name}."
 
     def unknown(self, message: str) -> str:
         if not message:

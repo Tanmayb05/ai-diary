@@ -124,6 +124,15 @@ class ChatSession:
             return self.handlers.show_facts()
         if routed.name == "ask":
             return self.handlers.ask(routed.params.get("question", ""))
+        if routed.name == "show_characters":
+            return self.handlers.show_characters()
+        if routed.name == "show_character":
+            return self.handlers.show_character(routed.params.get("name", ""))
+        if routed.name == "add_character_fact":
+            return self.handlers.add_character_fact_interactive(
+                name=routed.params.get("name", ""),
+                raw_text=routed.params.get("raw_text", ""),
+            )
 
         return self.handlers.unknown(message=routed.params.get("text", ""))
 

@@ -92,6 +92,8 @@ def parse_args() -> argparse.Namespace:
     digest_parser = subparsers.add_parser("digest", help="Generate a proactive personal digest")
     digest_parser.add_argument("--days", type=int, default=14)
 
+    subparsers.add_parser("backfill-characters", help="Extract character facts from all existing diary entries")
+
     tags_parser = subparsers.add_parser("tags", help="Show entry tags")
     tags_group = tags_parser.add_mutually_exclusive_group()
     tags_group.add_argument("--date", help="Entry date in YYYY-MM-DD format")
@@ -363,10 +365,62 @@ def handle_mood(days: int) -> None:
 
 
 def handle_ask(question: str, model: str) -> None:
+    from characters import load_characters
     try:
-        print(answer_with_facts(question, load_facts(), load_entries(), model=model))
+        print(answer_with_facts(question, load_facts(), load_entries(), characters=load_characters(), model=model))
     except AIError as exc:
         print(f"AI unavailable: {exc}")
+
+
+def handle_backfill_characters(model: str) -> None:
+    from characters import add_incident, upsert_character
+    from ai import extract_character_facts, AIError as _AIError
+    from utils import DATA_DIR, load_json, save_json
+    from db import get_db
+
+    progress_path = DATA_DIR / "character_backfill_progress.json"
+    progress = load_json(progress_path, {"processed_ids": []})
+    processed_ids = set(progress.get("processed_ids", []))
+
+    db = get_db()
+    rows = db.execute("SELECT id, date, entry FROM entries ORDER BY date ASC").fetchall()
+    total = len(rows)
+    new_count = 0
+
+    print(f"Found {total} entries. {len(processed_ids)} already processed.")
+
+    for row in rows:
+        entry_id = row["id"]
+        entry_date = row["date"]
+        entry_text = row["entry"] or ""
+
+        if entry_id in processed_ids:
+            continue
+        if not entry_text.strip():
+            processed_ids.add(entry_id)
+            save_json(progress_path, {"processed_ids": list(processed_ids)})
+            continue
+
+        print(f"  [{new_count + 1}] {entry_date} (id={entry_id})...", end=" ", flush=True)
+        try:
+            chars = extract_character_facts(entry_text, entry_date, model=model)
+            for char in chars:
+                name = char.get("name", "").strip()
+                if not name:
+                    continue
+                upsert_character(name, char.get("facts") or {}, entry_date)
+                for inc_text in char.get("incidents") or []:
+                    add_incident(name, inc_text, entry_date)
+            print(f"found {len(chars)} character(s)")
+        except _AIError as exc:
+            print(f"AI error: {exc}")
+            continue  # Don't mark as processed — allow retry
+
+        processed_ids.add(entry_id)
+        new_count += 1
+        save_json(progress_path, {"processed_ids": list(processed_ids)})
+
+    print(f"\nDone. Processed {new_count} new entries out of {total} total.")
 
 
 def handle_insight(model: str) -> None:
@@ -822,6 +876,8 @@ def main() -> None:
         handle_digest(args.days, args.model)
     elif args.command == "todo":
         handle_todo(args)
+    elif args.command == "backfill-characters":
+        handle_backfill_characters(args.model)
 
 
 if __name__ == "__main__":

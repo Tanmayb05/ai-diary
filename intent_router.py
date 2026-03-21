@@ -55,6 +55,12 @@ Return a JSON object with "intent" and "params" fields. Choose exactly one inten
 - "summarize"     — user wants a summary of a time period
                     params: {{"year": <int>, "month": <int or null>, "label": "<human readable label like 'March 2026' or '2026'>"}}
                     Examples: "show summary for 2026", "summarize march 2026", "how was my year", "what happened in january", "give me a recap of last month"
+- "show_characters" — user wants to see all known characters (e.g. "show characters", "who do I know", "list people")
+                    params: {{}}
+- "show_character"  — user wants details about one specific person (e.g. "tell me about Alice", "who is mom", "what do I know about Rahul")
+                    params: {{"name": "<person name>"}}
+- "add_character_fact" — user wants to add or update a fact about a named person (e.g. "add fact about Alice", "Alice is now at Google", "update Alice", "edit Rahul")
+                    params: {{"name": "<person name>", "raw_text": "<the full statement>"}}
 - "unknown"       — none of the above
                     params: {{}}
 
@@ -90,6 +96,16 @@ def route_message(message: str, model: str = "llama3.1:8b") -> RoutedIntent:
         return RoutedIntent("show_facts")
     if re.match(r"^(?:show|list|display|view)\s+(?:my\s+|all\s+)?(?:diary\s+)?entries?(?:\s+titles?)?$", text):
         return RoutedIntent("list_entries", {"limit": None})
+    if re.match(r"^(?:show|list|display|view)\s+(?:all\s+)?(?:characters?|people|persons?)$", text):
+        return RoutedIntent("show_characters")
+    if re.match(r"^who\s+do\s+i\s+know$", text):
+        return RoutedIntent("show_characters")
+    m = re.match(r"^(?:tell\s+me\s+about|who\s+is|what\s+do\s+i\s+know\s+about)\s+(.+)$", text)
+    if m:
+        return RoutedIntent("show_character", {"name": m.group(1).strip().title()})
+    m = re.match(r"^(?:add\s+fact\s+about|update|edit)\s+([a-z][a-z\s]*)$", text)
+    if m:
+        return RoutedIntent("add_character_fact", {"name": m.group(1).strip().title(), "raw_text": ""})
 
     # Fast-path: "summary/summarize for <period>"
     _sum = _try_parse_summarize(text)
@@ -358,6 +374,22 @@ def _build_intent(parsed: dict, original_message: str) -> RoutedIntent:
         label = str(params.get("label", "")).strip() or (str(year) if year else "")
         if year:
             return RoutedIntent("summarize", {"year": year, "month": month, "label": label})
+        return RoutedIntent("unknown", {"text": original_message})
+
+    if intent == "show_characters":
+        return RoutedIntent("show_characters")
+
+    if intent == "show_character":
+        name = str(params.get("name", "")).strip()
+        if name:
+            return RoutedIntent("show_character", {"name": name})
+        return RoutedIntent("unknown", {"text": original_message})
+
+    if intent == "add_character_fact":
+        name = str(params.get("name", "")).strip()
+        raw_text = str(params.get("raw_text", "")).strip() or original_message.strip()
+        if name:
+            return RoutedIntent("add_character_fact", {"name": name, "raw_text": raw_text})
         return RoutedIntent("unknown", {"text": original_message})
 
     return RoutedIntent("unknown", {"text": original_message.strip()})

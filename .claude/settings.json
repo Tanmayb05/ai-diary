@@ -28,7 +28,12 @@
       "Skill(gsd:quick)",
       "Skill(gsd:quick:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(sqlite3 /Users/tanmaybhuskute/Documents/ai-diary/data/diary.db \"SELECT COUNT\\(*\\) as entry_count FROM entries;\")",
+      "Bash(sqlite3 /Users/tanmaybhuskute/Documents/ai-diary/data/diary.db \"SELECT date, mood, highlight, metadata FROM entries LIMIT 1;\")",
+      "Bash(sqlite3 -json /Users/tanmaybhuskute/Documents/ai-diary/data/diary.db \"SELECT date, mood, highlight, metadata FROM entries LIMIT 1;\")",
+      "Bash(sqlite3 -json /Users/tanmaybhuskute/Documents/ai-diary/data/diary.db \"SELECT date, mood, highlight, sentiment_label, mood_alignment FROM entries LIMIT 2;\")",
+      "Bash(python3 -c \"import db; import utils; import characters; import ai; import handlers; import intent_router; import chat_session\")"
     ]
   }
 }

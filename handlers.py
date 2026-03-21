@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import calendar
 from typing import Any
 
 from ai import DEFAULT_MODEL, AIError, analyze_entry, answer_with_facts, chitchat, extract_tasks, generate_reflection
-from diary import get_entries_for_date, load_entries, load_entry_store, render_entries_for_day, render_task_candidate, upsert_entry
+from browse_state import BrowseState
+from diary import (
+    get_entries_by_month_summary, get_entries_by_year_summary,
+    get_entries_for_date, get_overview_data, list_entry_dates, load_entries,
+    load_entry_store, render_entries_for_day, render_task_candidate, upsert_entry,
+)
 from facts import load_facts, render_facts
 from prompts import mood_choices
 from todo import add_task, bulk_add_tasks, delete_task, list_tasks, mark_done, render_tasks
@@ -29,6 +35,7 @@ class ChatHandlers:
                 "Try:",
                 "- i want to write",
                 "- read today's entry",
+                "- list my entries",
                 "- show my todos",
                 "- add todo finish thesis draft",
                 "- mark task 2 done",
@@ -159,6 +166,104 @@ class ChatHandlers:
             lines.append("")
 
         return {"message": "\n".join(lines).strip()}
+
+    def list_entries(self) -> tuple[str, BrowseState]:
+        import datetime as _dt
+        from db import get_db
+        data = get_overview_data()
+        total = get_db().execute("SELECT COUNT(*) FROM entries").fetchone()[0]
+
+        options = []
+        lines = [f"Your diary  —  {total} entries", "", "Recent"]
+
+        for d in data["recent"]:
+            date_obj = _dt.date.fromisoformat(d)
+            day_name = date_obj.strftime("%a")
+            options.append({"type": "entry", "date": d, "label": f"{d}  {day_name}"})
+            lines.append(f"{len(options):>3}. {d}  {day_name}")
+
+        if data["months"]:
+            lines.append("")
+            lines.append("Months")
+            for year, month, count in data["months"]:
+                label = f"{calendar.month_name[month]} {year}"
+                entry_word = "entry" if count == 1 else "entries"
+                opt_label = f"{label:<18} {count} {entry_word}"
+                options.append({"type": "month", "year": year, "month": month, "label": opt_label})
+                lines.append(f"{len(options):>3}. {opt_label}")
+
+        if data["years"]:
+            lines.append("")
+            lines.append("Years")
+            for year, count in data["years"]:
+                entry_word = "entry" if count == 1 else "entries"
+                opt_label = f"{year}  {count} {entry_word}"
+                options.append({"type": "year", "year": year, "label": opt_label})
+                lines.append(f"{len(options):>3}. {opt_label}")
+
+        lines.append("")
+        lines.append("Type a number to open, or 'back' to exit.")
+        text = "\n".join(lines)
+        bs = BrowseState(level="overview", context={}, options=options, history=[])
+        return text, bs
+
+    def browse_year(self, year: int) -> tuple[str, BrowseState]:
+        month_map = get_entries_by_year_summary(year)
+        total = sum(len(v) for v in month_map.values())
+        lines = [f"{year}  —  {total} entries", ""]
+        options = []
+        for month_num in sorted(month_map.keys()):
+            dates = month_map[month_num]
+            count = len(dates)
+            entry_word = "entry" if count == 1 else "entries"
+            label = f"{calendar.month_name[month_num]:<12} {count} {entry_word}"
+            options.append({"type": "month", "year": year, "month": month_num, "label": label})
+            lines.append(f"{len(options):>3}. {label}")
+        lines.append("")
+        lines.append("Type a number to open, or 'back' to go up.")
+        text = "\n".join(lines)
+        return text, BrowseState(level="year", context={"year": year}, options=options, history=[])
+
+    def browse_month(self, year: int, month: int) -> tuple[str, BrowseState]:
+        import datetime as _dt
+        week_map = get_entries_by_month_summary(year, month)
+        total = sum(len(v) for v in week_map.values())
+        month_label = f"{calendar.month_name[month]} {year}"
+        lines = [f"{month_label}  —  {total} entries", ""]
+        options = []
+        for week_num in sorted(week_map.keys()):
+            dates = week_map[week_num]
+            count = len(dates)
+            first = _dt.date.fromisoformat(dates[0])
+            last = _dt.date.fromisoformat(dates[-1])
+            range_label = f"{first.strftime('%b %-d')}–{last.day}"
+            entry_word = "entry" if count == 1 else "entries"
+            label = f"Week {week_num - min(week_map.keys()) + 1}  {range_label:<12} {count} {entry_word}"
+            options.append({
+                "type": "week", "year": year, "month": month,
+                "week_num": week_num, "dates": dates, "label": label,
+            })
+            lines.append(f"{len(options):>3}. {label}")
+        lines.append("")
+        lines.append("Type a number to open, or 'back' to go up.")
+        text = "\n".join(lines)
+        return text, BrowseState(level="month", context={"year": year, "month": month}, options=options, history=[])
+
+    def browse_week(self, year: int, month: int, week_num: int, dates: list[str]) -> tuple[str, BrowseState]:
+        import datetime as _dt
+        month_label = f"{calendar.month_name[month]} {year}"
+        lines = [f"{month_label}, Week {week_num}  —  {len(dates)} entries", ""]
+        options = []
+        for d in dates:
+            date_obj = _dt.date.fromisoformat(d)
+            day_name = date_obj.strftime("%a")
+            label = f"{d}  {day_name}"
+            options.append({"type": "entry", "date": d, "label": label})
+            lines.append(f"{len(options):>3}. {label}")
+        lines.append("")
+        lines.append("Type a number to read the entry, or 'back' to go up.")
+        text = "\n".join(lines)
+        return text, BrowseState(level="week", context={"year": year, "month": month, "week_num": week_num}, options=options, history=[])
 
     def todo_list(self) -> dict[str, Any]:
         tasks = list_tasks(include_completed=True)

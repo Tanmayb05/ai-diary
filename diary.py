@@ -108,6 +108,23 @@ def list_entry_dates(limit: int | None = None) -> list[str]:
     return [row["date"] for row in rows]
 
 
+def get_entries_for_period(year: int, month: int | None = None) -> list[dict[str, Any]]:
+    db = get_db()
+    if month is not None:
+        prefix = f"{year}-{month:02d}-"
+        rows = db.execute(
+            "SELECT * FROM entries WHERE date LIKE ? ORDER BY date",
+            (prefix + "%",)
+        ).fetchall()
+    else:
+        prefix = f"{year}-"
+        rows = db.execute(
+            "SELECT * FROM entries WHERE date LIKE ? ORDER BY date",
+            (prefix + "%",)
+        ).fetchall()
+    return [{"date": row["date"], **_row_to_entry(row)} for row in rows]
+
+
 def get_overview_data() -> dict:
     """Returns recent dates, last 3 months with entries, and all years with counts."""
     db = get_db()

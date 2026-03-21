@@ -554,8 +554,13 @@ def answer_with_facts(
 Answer the user's question using the sources below.
 Prefer the Known personal facts section for direct personal questions.
 Use diary entries only for questions about events, feelings, or patterns over time.
-If you cannot answer from the provided context, say "I don't know yet."
+If you cannot answer from the provided context, say "I don't know."
 Be concise and specific.
+
+IMPORTANT rules:
+- The diary entries are written by the diary author (first person "I"). Do not confuse the author with other people mentioned in the entries.
+- If a question is about a specific person (e.g. "Aai's birthday", "mom's birthday"), only answer if the entries explicitly state that person's birthday. Do not substitute the author's own birthday.
+- If the entries mention the author's birthday but the question asks about someone else's birthday, say "I don't know."
 
 Question: {question}
 

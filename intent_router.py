@@ -257,8 +257,10 @@ def _try_parse_read_range(text: str) -> RoutedIntent | None:
     month_pattern = "|".join(_MONTH_NAMES)
 
     # "show entries in the month of feb 2026" / "entries in march 2026" / "show march 2026 entries"
+    # The standalone "in|for" branch requires "the month of" to avoid matching question phrasing
+    # like "i celebrated whose birthday in march 2026"
     m = re.search(
-        rf"(?:entries?\s+(?:in|for|of|from)\s+(?:the\s+month\s+of\s+)?|(?:in|for)\s+(?:the\s+month\s+of\s+)?)({month_pattern})\s+(\d{{4}})",
+        rf"(?:entries?\s+(?:in|for|of|from)\s+(?:the\s+month\s+of\s+)?|(?:in|for)\s+the\s+month\s+of\s+)({month_pattern})\s+(\d{{4}})",
         text,
     )
     if m:
@@ -268,7 +270,7 @@ def _try_parse_read_range(text: str) -> RoutedIntent | None:
 
     # "show entries in the year 2023" / "entries in 2023" / "show 2023 entries"
     m = re.search(
-        r"(?:entries?\s+(?:in|for|of|from)\s+(?:the\s+year\s+)?|(?:in|for)\s+(?:the\s+year\s+)?)(\d{4})\b",
+        r"(?:entries?\s+(?:in|for|of|from)\s+(?:the\s+year\s+)?|(?:in|for)\s+the\s+year\s+)(\d{4})\b",
         text,
     )
     if m:

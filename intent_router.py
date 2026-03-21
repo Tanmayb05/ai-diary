@@ -50,6 +50,11 @@ Return a JSON object with "intent" and "params" fields. Choose exactly one inten
                     params: {{"question": "<the question text>"}}
 - "journal_candidate" — message reads like personal diary content: expressing feelings, describing what happened in their day, venting, reflecting, or sharing a personal experience or emotion. Use this when the user types something that sounds like they're journaling even if they didn't explicitly say "write" or "journal".
                     params: {{"entry_text": "<the full message text>"}}
+- "list_entries"  — user wants to see a list of entry dates/titles (e.g. "show my entries", "list entries", "what entries do I have", "show entry titles", "list all my diary entries")
+                    params: {{"limit": <int or null>}}
+- "summarize"     — user wants a summary of a time period
+                    params: {{"year": <int>, "month": <int or null>, "label": "<human readable label like 'March 2026' or '2026'>"}}
+                    Examples: "show summary for 2026", "summarize march 2026", "how was my year", "what happened in january", "give me a recap of last month"
 - "unknown"       — none of the above
                     params: {{}}
 
@@ -77,6 +82,13 @@ def route_message(message: str, model: str = "llama3.1:8b") -> RoutedIntent:
         return RoutedIntent("help")
     if re.match(r"^(?:show|list|display|view)\s+(?:my\s+)?facts?$", text):
         return RoutedIntent("show_facts")
+    if re.match(r"^(?:show|list|display|view)\s+(?:my\s+|all\s+)?(?:diary\s+)?entries?(?:\s+titles?)?$", text):
+        return RoutedIntent("list_entries", {"limit": None})
+
+    # Fast-path: "summary/summarize for <period>"
+    _sum = _try_parse_summarize(text)
+    if _sum is not None:
+        return _sum
 
     # Fast-path: "read <month> <year>" or "read <year> <month>"
     _range = _try_parse_read_range(text)
@@ -152,6 +164,28 @@ def _try_parse_read_date(text: str) -> RoutedIntent | None:
     return None
 
 
+def _try_parse_summarize(text: str) -> RoutedIntent | None:
+    """Fast-path for 'summary/summarize for <period>' patterns."""
+    month_pattern = "|".join(_MONTH_NAMES)
+    # "summary for 2026" or "summarize 2026" or "recap of 2026"
+    m = re.match(r"^(?:show\s+)?(?:summary|summarize|recap|overview)\s+(?:for\s+|of\s+)?(\d{4})$", text)
+    if m:
+        year = int(m.group(1))
+        return RoutedIntent("summarize", {"year": year, "month": None, "label": str(year)})
+    # "summary for march 2026" or "summarize march 2026"
+    m = re.match(
+        rf"^(?:show\s+)?(?:summary|summarize|recap|overview)\s+(?:for\s+|of\s+)?({month_pattern})\s+(\d{{4}})$",
+        text,
+    )
+    if m:
+        month = _MONTH_NAMES[m.group(1)]
+        year = int(m.group(2))
+        import calendar as _cal
+        label = f"{_cal.month_name[month]} {year}"
+        return RoutedIntent("summarize", {"year": year, "month": month, "label": label})
+    return None
+
+
 def _try_parse_read_range(text: str) -> RoutedIntent | None:
     """Fast-path regex for 'read <month> <year>' or 'read <year> <month>' patterns."""
     month_pattern = "|".join(_MONTH_NAMES)
@@ -213,6 +247,10 @@ def _build_intent(parsed: dict, original_message: str) -> RoutedIntent:
     if intent == "show_facts":
         return RoutedIntent("show_facts")
 
+    if intent == "list_entries":
+        limit = _int_or_none(params.get("limit"))
+        return RoutedIntent("list_entries", {"limit": limit})
+
     if intent == "ask":
         question = str(params.get("question", "")).strip() or original_message.strip()
         return RoutedIntent("ask", {"question": question})
@@ -224,6 +262,14 @@ def _build_intent(parsed: dict, original_message: str) -> RoutedIntent:
             {"entry_text": entry_text},
             "That sounds like a diary entry. Would you like me to save this to your journal? (yes / no)",
         )
+
+    if intent == "summarize":
+        year = _int_or_none(params.get("year"))
+        month = _int_or_none(params.get("month"))
+        label = str(params.get("label", "")).strip() or (str(year) if year else "")
+        if year:
+            return RoutedIntent("summarize", {"year": year, "month": month, "label": label})
+        return RoutedIntent("unknown", {"text": original_message})
 
     return RoutedIntent("unknown", {"text": original_message.strip()})
 

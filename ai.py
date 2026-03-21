@@ -342,6 +342,24 @@ Entries:
     return _generate(prompt, model=model, temperature=0.3, call_type="insight")
 
 
+def generate_period_summary(entries_digest: str, label: str, entry_count: int, date_range: str, model: str = DEFAULT_MODEL) -> str:
+    prompt = f"""You are summarizing a personal diary for the period: {label}
+There are {entry_count} entries from {date_range}.
+
+Your summary should cover:
+1. Mood/emotional arc — how feelings shifted across the period
+2. Major events — highlights, milestones, decisions
+3. Recurring themes — things that kept coming up
+4. Notable quotes — 1-2 standout lines from the actual entries if they exist
+5. Overall tone — growth, tough stretch, peaceful, transitional, etc.
+
+Write in second person ("You wrote...", "Your mood..."). Be warm, specific, and grounded in the actual entries. 150-250 words. No bullet points — flowing prose only. Start directly with the summary title like "{label} Summary" on the first line.
+
+Entries:
+{entries_digest}""".strip()
+    return _generate(prompt, model=model, temperature=0.5, call_type="period_summary")
+
+
 def generate_weekly_summary(entries: list[tuple[str, dict[str, Any]]], model: str = DEFAULT_MODEL) -> str:
     if not entries:
         return "No diary entries found yet."
